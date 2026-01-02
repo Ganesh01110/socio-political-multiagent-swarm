@@ -19,6 +19,14 @@ class BaseAgent(BaseModel):
     trust_score: float = 50.0
     x: float = 0.0
     y: float = 0.0
+    # Advanced attributes
+    ideology: List[float] = Field(default_factory=lambda: [0.0, 0.0]) # [Economic, Social]
+    education: float = 0.5
+    memory_decay: float = 0.05
+    cognitive_bias: float = 0.1
+    last_state_vec: Optional[Any] = Field(default=None, exclude=True)
+    last_action: int = -1
+    moral_resistance: float = 0.5
     
     class Config:
         use_enum_values = True
@@ -32,6 +40,9 @@ class CitizenAgent(BaseAgent):
     faction_loyalty: float = 50.0
     age: int = 0
     lifespan: int = 100 # ticks
+    # Citizen specific emotions/biases
+    fear: float = 0.0 # Vote suppression, protest avoidance
+    hope: float = 0.5 # Economic risk taking
 
 class StateLeaderAgent(BaseAgent):
     type: AgentType = AgentType.LEADER
@@ -41,7 +52,6 @@ class StateLeaderAgent(BaseAgent):
     wealth: float = 0.0 # Personal Wealth
     # RL Fields
     last_state: str = ""
-    last_action: int = -1
     last_dqn_state: Optional[Any] = Field(default=None, exclude=True)
     performance_score: float = 50.0
     recent_feedback: str = ""
@@ -56,6 +66,10 @@ class MediaAgent(BaseAgent):
     credibility: float = 0.5
     bias: float = 0.0 # Negative is anti-establishment, Positive is pro-establishment
     reach: float = 150.0
+    # Media control variables
+    ownership: str = "Independent"
+    disinformation_rate: float = 0.05
+    algorithmic_amplification: float = 1.0
 
 class ExternalFactorAgent(BaseAgent):
     type: AgentType = AgentType.EXTERNAL

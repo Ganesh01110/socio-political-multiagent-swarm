@@ -1,22 +1,12 @@
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from app.models.agents import StateLeaderAgent, CitizenAgent, SupremeLeaderAgent
 from app.models.world import Nation, State
-from app.ml.dqn import DQNAgent
 import numpy as np
+import random
 
 class EconomyService:
     def __init__(self):
-        self.brains: Dict[str, DQNAgent] = {}
-        # DQN Specs:
-        # State: [trust_score, wealth, happiness, budget_allocated] (4 floats)
-        # Actions: 0=Invest, 1=Steal, 2=Maintain, 3=Propaganda (4 actions)
-        self.state_size = 4
-        self.action_size = 4
-
-    def get_brain(self, leader_id: str) -> DQNAgent:
-        if leader_id not in self.brains:
-            self.brains[leader_id] = DQNAgent(self.state_size, self.action_size)
-        return self.brains[leader_id]
+        pass
 
     def distribute_national_budget(self, supreme_leader: SupremeLeaderAgent, nation: Nation, state_leaders: List[StateLeaderAgent]):
         total_budget = 1000.0
@@ -26,72 +16,76 @@ class EconomyService:
         for leader in state_leaders:
             leader.budget_allocated = per_state_budget
 
-    def _get_continuous_state(self, leader: StateLeaderAgent, citizens: List[CitizenAgent]):
-        """Returns a normalized vector: [trust, wealth, happiness, budget]."""
-        avg_happiness = sum(c.happiness for c in citizens) / len(citizens) if citizens else 50.0
-        # Normalize to approx 0-1 range
-        return np.array([
-            leader.trust_score / 100.0,
-            min(1.0, leader.wealth / 200.0),
-            avg_happiness / 100.0,
-            min(1.0, leader.budget_allocated / 500.0)
-        ]).astype(np.float32)
-
-    def process_state_economy(self, leader: StateLeaderAgent, citizens: List[CitizenAgent]):
+    def process_state_economy(self, leader: StateLeaderAgent, citizens: List[CitizenAgent], inflation: float, unemployment: float) -> float:
+        """
+        Executes the economic consequences of the leader's action.
+        Returns the step reward for the leader.
+        """
         if not citizens:
-            return
+            return 0.0
 
-        brain = self.get_brain(leader.id)
-        current_state = self._get_continuous_state(leader, citizens)
+        action = leader.last_action
         
-        # 1. Choose Action
-        action = brain.choose_action(current_state)
-        
-        # 2. Execute Action
+        # 1. Execute Action Effects
         initial_budget = leader.budget_allocated
         funds_for_people = initial_budget
         personal_gain = 0
         trust_change = 0
+        happiness_modifier = 0
         
-        if action == 1: # STEAL
+        if action == 1: # STEAL / BLACK ECONOMY
             personal_gain = initial_budget * 0.5
-            funds_for_people = initial_budget * 0.5
-            trust_change -= 5
+            funds_for_people = initial_budget * 0.4 # More goes to black economy
+            trust_change -= 10
+            happiness_modifier -= 2
         elif action == 0: # INVEST
             funds_for_people = initial_budget
             if leader.wealth > 10:
                 funds_for_people += 10
                 leader.wealth -= 10
             trust_change += 5
+            happiness_modifier += 1
         elif action == 2: # MAINTAIN
             personal_gain = initial_budget * 0.1
             funds_for_people = initial_budget * 0.9
             trust_change += 0
         elif action == 3: # PROPAGANDA
-            funds_for_people = initial_budget * 0.8
-            trust_change += 10
+            funds_for_people = initial_budget * 0.7
+            trust_change += 15 # Short term trust boost
+            happiness_modifier -= 1 # Long term structural damage
+            
+        # Economic Risk Taking (Hope)
+        for citizen in citizens:
+            if random.random() < citizen.hope:
+                 citizen.wealth += random.uniform(0, 2) # Risk pays off
+            else:
+                 citizen.wealth -= random.uniform(0, 1) # Loss
 
         leader.wealth += personal_gain
         leader.corruption_level = personal_gain
 
-        # 3. Calculate Reward & Learn
-        step_reward = personal_gain + (trust_change * 2) + 1
-        
-        if hasattr(leader, 'last_dqn_state') and leader.last_dqn_state is not None:
-             brain.remember(leader.last_dqn_state, leader.last_action, step_reward, current_state, False)
-             brain.learn()
-
-        leader.last_dqn_state = current_state
-        leader.last_action = action
-
-        # 4. Distribute to Citizens
-        per_citizen = funds_for_people / len(citizens)
+        # 2. Distribute to Citizens with Inflation/Unemployment effects
+        per_citizen = (funds_for_people / len(citizens)) * (1.0 - inflation)
         for citizen in citizens:
             citizen.wealth += per_citizen
             citizen.trust_score = max(0, min(100, citizen.trust_score + trust_change))
             
-            fair_share = initial_budget / len(citizens)
-            if per_citizen < fair_share * 0.8:
-                citizen.happiness -= 1
+            # Unemployment impact
+            if random.random() < unemployment:
+                 citizen.wealth *= 0.8 # Loss of income
+                 citizen.happiness -= 5
+            
+            fair_share = (initial_budget / len(citizens)) * 0.8
+            if per_citizen < fair_share:
+                citizen.happiness -= 2
             else:
                 citizen.happiness += 1
+                
+            citizen.happiness = max(0, min(100, citizen.happiness + happiness_modifier))
+
+        # 3. Calculate Reward (Strategic Layer)
+        # Reward is a mix of personal wealth, trust, and state stability
+        avg_happiness = sum(c.happiness for c in citizens) / len(citizens)
+        step_reward = personal_gain + (trust_change * 2) + (avg_happiness / 10.0)
+        
+        return step_reward

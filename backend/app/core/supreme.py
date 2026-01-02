@@ -28,31 +28,32 @@ class SupremeLeaderService:
         Checks if any leader is too corrupt or incompetent.
         If so, FIRES them (replaces with new leader).
         """
-        # Iterate safely
         state_ids = list(nation_state_dict.keys())
-        
         fired_events = []
 
         for state_id in state_ids:
             leader_id = nation_state_dict[state_id].leader_id
             leader = agents.get(leader_id)
-            
-            if not leader:
-                continue
+            if not leader: continue
                 
-            # FIRE CRITERIA:
-            # 1. Trust < 10 (Hated by people)
-            # 2. Corruption > 50 (Too greedy, although SL might like greed if they get a cut...)
-            # Let's say SL fires incompetent leaders (Low Trust).
+            # Evaluation Metrics (Long horizon reward)
+            # SL fires if:
+            # 1. Trust < 20 (Public outcry)
+            # 2. Corruption > 75 (SL feels threatened or greedy)
+            # 3. Performance score < 30
             
-            if leader.trust_score < 10.0:
+            reasons = []
+            if leader.trust_score < 20.0:
+                reasons.append("Low Trust")
+            if leader.corruption_level > 75.0:
+                reasons.append("Extreme Corruption")
+            if leader.performance_score < 30.0:
+                reasons.append("Poor Performance")
+
+            if reasons:
                 # YOU ARE FIRED!
                 new_leader = self.election_service.create_new_leader(state_id)
-                
-                # Remove old
                 del agents[leader_id]
-                
-                # Add new
                 agents[new_leader.id] = new_leader
                 nation_state_dict[state_id].leader_id = new_leader.id
                 
@@ -60,7 +61,8 @@ class SupremeLeaderService:
                     "tick": current_tick,
                     "type": "fired",
                     "old_leader": leader_id,
-                    "reason": "Low Trust"
+                    "new_leader_id": new_leader.id,
+                    "reason": ", ".join(reasons)
                 })
                 
         return fired_events

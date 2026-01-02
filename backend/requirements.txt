@@ -4,6 +4,13 @@ pydantic
 sqlalchemy
 aiosqlite
 websockets
-torch
 numpy
+scikit-learn
+scikit-fuzzy
+torch
+torchvision
+torchaudio
 mariadb
+python-multipart
+python-jose[cryptography]
+passlib[攜t]

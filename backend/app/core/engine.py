@@ -1,7 +1,7 @@
 import uuid
 from typing import Dict, List
 from app.models.world import Nation, State
-from app.models.agents import BaseAgent, CitizenAgent, StateLeaderAgent, SupremeLeaderAgent, AgentType
+from app.models.agents import BaseAgent, CitizenAgent, StateLeaderAgent, SupremeLeaderAgent, AgentType, MediaAgent, ExternalFactorAgent
 from app.core.election import ElectionService
 from app.core.economy import EconomyService
 from app.core.social import InfluenceService
@@ -9,7 +9,18 @@ from app.core.supreme import SupremeLeaderService
 from app.db.database import SessionLocal, engine, Base
 from app.db.models import SimulationHistory
 from app.core.llm import LLMFeedbackService
+from app.ml.brain_stack import (
+    DecisionPolicy, RuleBasedPolicy, ANNPolicy, DQNPolicy, HybridPolicy
+)
+from app.core.generators import initialize_agents_with_dist, initialize_media_with_dist, ScenarioGenerator
+from app.core.fuzzy import FuzzyMoralityService
 import random
+import numpy as np
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("SwormSim")
 
 class TickScheduler:
     def __init__(self):
@@ -31,6 +42,13 @@ class SimulationEngine:
         self.supreme_service = SupremeLeaderService(self.election_service)
         self.llm_service = LLMFeedbackService()
         self.last_election_results = []
+        self.agent_policies: Dict[str, DecisionPolicy] = {}
+        
+        # Economic Feedback Variables
+        self.inflation_rate = 0.02
+        self.unemployment_rate = 0.05
+        self.black_economy_scale = 0.01
+        self.fuzzy_morality_service = FuzzyMoralityService()
         
         # Create Tables with error handling
         try:
@@ -47,6 +65,32 @@ class SimulationEngine:
             self.db_session = None # Graceful failure
         
         self.initialize_world()
+
+    def _create_policy(self, agent_type: AgentType, role: str = "") -> DecisionPolicy:
+        """Strategy based brain selection."""
+        # state_size: trust, wealth, happiness, budget, inflation, unemployment, inequality
+        state_size = 7 
+        action_size = 4 # Default actions
+        
+        if role == "supreme_leader":
+            return DQNPolicy(state_size, action_size, long_horizon=True)
+        elif agent_type == AgentType.LEADER:
+            return DQNPolicy(state_size, action_size)
+        elif role == "influencer":
+            return ANNPolicy(state_size, action_size)
+        elif agent_type == AgentType.CITIZEN:
+            # Most citizens are rule-based
+            if random.random() < 0.8:
+                # Rule: trust < 0.3 AND unemployment > 0.5 -> protest (Action 1)
+                rules = [
+                    {"condition": lambda s: s[0] < 0.3 and s[5] > 0.5, "action": 1},
+                    {"condition": lambda s: s[2] > 0.8, "action": 2}, # High happiness -> Maintain
+                ]
+                return RuleBasedPolicy(rules)
+            else:
+                return ANNPolicy(state_size, action_size, hidden_size=8)
+        
+        return RuleBasedPolicy([]) # Fallback
 
     def initialize_world(self):
         # Create States
@@ -72,31 +116,16 @@ class SimulationEngine:
                 y=random.random() * 600  # Random Y within bounds
             )
             self.agents[leader_id] = leader
+            self.agent_policies[leader_id] = self._create_policy(AgentType.LEADER)
             state.leader_id = leader_id
 
-            # Create Citizens
-            factions = ["Industrialist", "Environmentalist", "Technocrat", "Neutral"]
-            weights = [1, 7, 7, 6] # 1 Industrialist to 20 Others (7+7+6=20)
-            
-            for j in range(state.population):
-                citizen_id = str(uuid.uuid4())
-                faction = random.choices(factions, weights=weights)[0]
-                
-                citizen = CitizenAgent(
-                    id=citizen_id,
-                    honesty=random.random(),
-                    greed=random.random(),
-                    competence=random.random(),
-                    state_id=state_id,
-                    happiness=50 + random.randint(-10, 10),
-                    faction=faction,
-                    faction_loyalty=random.uniform(30, 70),
-                    age=random.randint(0, 80), # Start with diverse ages
-                    lifespan=random.randint(80, 120),
-                    x=random.random() * 800,
-                    y=random.random() * 600
-                )
-                self.agents[citizen_id] = citizen
+            # Create Citizens with Synthetic Distribution
+            citizens = initialize_agents_with_dist(state_id, 50)
+            for citizen in citizens:
+                self.agents[citizen.id] = citizen
+                # Randomly assign some as influencers
+                role = "influencer" if random.random() < 0.05 else "citizen"
+                self.agent_policies[citizen.id] = self._create_policy(AgentType.CITIZEN, role=role)
 
         # Create Nation
         self.nation = Nation(
@@ -115,23 +144,13 @@ class SimulationEngine:
             tenure_remaining=10
         )
         self.agents[sl_id] = sl
+        self.agent_policies[sl_id] = self._create_policy(AgentType.SUPREME_LEADER, role="supreme_leader")
         self.nation.supreme_leader_id = sl_id
 
-        # Phase 9: Create Media Agents (L3 - Purple)
-        from app.models.agents import MediaAgent, ExternalFactorAgent
-        for i in range(3):
-            m_id = str(uuid.uuid4())
-            media = MediaAgent(
-                id=m_id,
-                honesty=random.random(),
-                greed=random.uniform(0.1, 0.4),
-                competence=random.uniform(0.6, 0.9),
-                credibility=random.uniform(0.5, 0.8),
-                bias=random.uniform(-0.5, 0.5),
-                x=random.random() * 800,
-                y=random.random() * 600
-            )
-            self.agents[m_id] = media
+        # Phase 9: Create Media Agents with Distribution
+        media_agents = initialize_media_with_dist(3)
+        for media in media_agents:
+            self.agents[media.id] = media
 
         # Phase 9: Create External Factor Agent (L4 - Grey)
         wf_id = str(uuid.uuid4())
@@ -158,9 +177,61 @@ class SimulationEngine:
         
         tick = self.scheduler.tick()
         
-        # Phase 2: Economy & Election Trigger
+        # 1. Calculate Global Economic Metrics (Feedback Loop)
+        all_citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN]
+        if all_citizens:
+            avg_wealth = sum(c.wealth for c in all_citizens) / len(all_citizens)
+            wealth_sq_diff = sum((c.wealth - avg_wealth)**2 for c in all_citizens)
+            inequality = (wealth_sq_diff / len(all_citizens))**0.5 / (avg_wealth + 0.1)
+            
+            # Simple Feedback: High inequality -> inflation increases, unemployment increases
+            self.inflation_rate = max(0.01, self.inflation_rate + (inequality * 0.001) - 0.0005)
+            self.unemployment_rate = max(0.02, self.unemployment_rate + (self.inflation_rate * 0.1) - 0.001)
+        else:
+            inequality = 0.0
         
-        # 1. Economy Cycle
+        # 2. Process Decisions for each agent
+        for agent_id, agent in self.agents.items():
+            policy = self.agent_policies.get(agent_id)
+            if not policy: continue
+            
+            # Construct State Vector: [trust, wealth, happiness, budget, inflation, unemployment, inequality]
+            budget = getattr(agent, 'budget_allocated', 0.0) or getattr(agent, 'total_budget', 0.0)
+            state_vec = np.array([
+                agent.trust_score / 100.0,
+                min(1.0, getattr(agent, 'wealth', 0.0) / 1000.0),
+                getattr(agent, 'happiness', 50.0) / 100.0,
+                min(1.0, budget / 1000.0),
+                self.inflation_rate,
+                self.unemployment_rate,
+                min(1.0, inequality)
+            ])
+            
+            # Decision
+            action = policy.decide(state_vec)
+            
+            # Execute Action Effects (Stochasticity added)
+            if random.random() < agent.cognitive_bias:
+                 # Irrational action!
+                 action = random.randint(0, 3)
+            
+            # Store for learning
+            agent.last_action = action
+            agent.last_state_vec = state_vec 
+            
+            # 4. Fuzzy Moral Update
+            # Agents update their moral bias based on global conditions
+            # If trust is high, morality increases; if pressure (inflation/unemployment) is high, it decreases
+            pressure = (self.inflation_rate + self.unemployment_rate) * 5.0
+            agent.moral_resistance = self.fuzzy_morality_service.calculate_moral_resistance(
+                agent.greed, agent.trust_score, pressure
+            )
+
+            # Rich Log for Rule-based
+            if isinstance(policy, RuleBasedPolicy) and action != 0:
+                 logger.info(f"AGENT {agent_id[:4]} (RuleBased) decided to ACTION {action} at tick {tick} | Trust: {agent.trust_score:.2f}, Unemployment: {self.unemployment_rate:.2f}")
+        
+        # 3. Economy Cycle
         # Get Supreme Leader
         sl = self.agents.get(self.nation.supreme_leader_id)
         
@@ -185,7 +256,16 @@ class SimulationEngine:
                 if a.type == AgentType.CITIZEN and a.state_id == state.id
             ]
             
-            self.economy_service.process_state_economy(leader, citizens)
+            # Execute economy and get reward
+            reward = self.economy_service.process_state_economy(
+                leader, citizens, self.inflation_rate, self.unemployment_rate
+            )
+            
+            # Learn Step for Leader
+            leader_policy = self.agent_policies.get(leader.id)
+            if leader_policy and hasattr(leader, 'last_state_vec'):
+                # For learning, we need to decide next state vec (simplified: current)
+                leader_policy.learn(leader.last_state_vec, leader.last_action, reward, leader.last_state_vec, False)
 
             # Generate LLM Feedback (Phase 7)
             if tick % 5 == 0:
@@ -240,10 +320,20 @@ class SimulationEngine:
                 fired_events = self.supreme_service.evaluate_leaders(state_dict, self.agents, tick)
                 # If anyone fired, add to news?
                 for event in fired_events:
+                     # Initialize policy for NEW leader
+                     new_leader_id = event.get("new_leader_id") # I need to update supreme.py to return this
+                     if new_leader_id and new_leader_id in self.agents:
+                         self.agent_policies[new_leader_id] = self._create_policy(AgentType.LEADER)
+                     
+                     # Old policy should be removed if still exists
+                     old_leader_id = event.get("old_leader")
+                     if old_leader_id in self.agent_policies:
+                         del self.agent_policies[old_leader_id]
+
                      self.last_election_results.append({
                          "outcome": "Leader Executed",
                          "winner_name": "Appointed Leader",
-                         "state_id": "Unknown", # Need to fetch state name if needed
+                         "state_id": "Unknown",
                          "reason": event["reason"]
                      })
 
@@ -260,6 +350,13 @@ class SimulationEngine:
              metrics["avg_happiness"] = sum(c.happiness for c in all_citizens) / len(all_citizens)
              metrics["avg_wealth"] = sum(c.wealth for c in all_citizens) / len(all_citizens)
              metrics["avg_trust"] = sum(c.trust_score for c in all_citizens) / len(all_citizens)
+             metrics["inflation"] = self.inflation_rate
+             metrics["unemployment"] = self.unemployment_rate
+             
+             # Calculate Inequality
+             avg_wealth = metrics["avg_wealth"]
+             wealth_sq_diff = sum((c.wealth - avg_wealth)**2 for c in all_citizens)
+             metrics["inequality"] = (wealth_sq_diff / len(all_citizens))**0.5 / (avg_wealth + 0.1)
 
         # ---------------------------------------------
         # PERSIST DATA (Phase 6)
@@ -312,29 +409,30 @@ class SimulationEngine:
                 
                 # Remove old leader
                 del self.agents[current_leader.id]
+                if current_leader.id in self.agent_policies:
+                    del self.agent_policies[current_leader.id]
                 
                 # Add new leader
                 self.agents[new_leader.id] = new_leader
+                self.agent_policies[new_leader.id] = self._create_policy(AgentType.LEADER)
                 state.leader_id = new_leader.id
                 
                 details["outcome"] = "Incumbent Defeated"
                 details["winner_name"] = "New Leader"
                 
                 # TERMINAL PUNISHMENT
-                brain = self.economy_service.get_brain(leader_id)
-                if hasattr(current_leader, 'last_dqn_state') and current_leader.last_dqn_state is not None:
-                    brain.remember(current_leader.last_dqn_state, current_leader.last_action, -100.0, current_leader.last_dqn_state, True)
-                    brain.learn()
+                policy = self.agent_policies.get(current_leader.id)
+                if policy and hasattr(current_leader, 'last_state_vec'):
+                    policy.learn(current_leader.last_state_vec, current_leader.last_action, -100.0, current_leader.last_state_vec, True)
 
             else:
                 details["outcome"] = "Incumbent Re-elected"
                 details["winner_name"] = "Incumbent"
 
                 # TERMINAL REWARD (Bonuses)
-                brain = self.economy_service.get_brain(leader_id)
-                if hasattr(current_leader, 'last_dqn_state') and current_leader.last_dqn_state is not None:
-                    brain.remember(current_leader.last_dqn_state, current_leader.last_action, +100.0, current_leader.last_dqn_state, True)
-                    brain.learn()
+                policy = self.agent_policies.get(current_leader.id)
+                if policy and hasattr(current_leader, 'last_state_vec'):
+                    policy.learn(current_leader.last_state_vec, current_leader.last_action, +100.0, current_leader.last_state_vec, True)
             
             self.last_election_results.append(details)
 
@@ -369,9 +467,13 @@ class SimulationEngine:
                         age=0,
                         lifespan=random.randint(80, 120),
                         x=agent.x, # Born at same location
-                        y=agent.y
+                        y=agent.y,
+                        education=agent.education + random.uniform(-0.1, 0.1),
+                        ideology=[i + random.uniform(-0.05, 0.05) for i in agent.ideology]
                     )
                     new_citizens[child_id] = child
+                    # Initialize policy for child
+                    self.agent_policies[child_id] = self._create_policy(AgentType.CITIZEN)
                     
                     # Notify News (Every 10 deaths to avoid spam)
                     if len(dead_citizens) % 10 == 0:
@@ -385,6 +487,8 @@ class SimulationEngine:
         # Remove dead, add new
         for d_id in dead_citizens:
             del self.agents[d_id]
+            if d_id in self.agent_policies:
+                del self.agent_policies[d_id]
         
         self.agents.update(new_citizens)
 
@@ -394,18 +498,37 @@ class SimulationEngine:
         citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN]
         
         for media in media_agents:
-            # Decide on a narrative based on bias
-            # Positive bias pushes pro-leader narrative
+            # Algorithmic Amplification
+            effective_reach = media.reach * media.algorithmic_amplification
+            
+            # Disinformation Rate: Chance to flip logic
+            is_disinfo = random.random() < media.disinformation_rate
+            
+            # Narrative force based on ownership and bias
+            # If owned by State, mostly positive bias
             narrative_force = media.bias * media.credibility
+            if is_disinfo:
+                narrative_force *= -1.5 # Disinfo is more volatile
             
             for citizen in citizens:
                 dist = ((citizen.x - media.x)**2 + (citizen.y - media.y)**2)**0.5
-                if dist < media.reach:
+                if dist < effective_reach:
+                    # Education buffer: higher education = less influence from media
+                    edu_buffer = 1.0 - (citizen.education * 0.5)
+                    
+                    impact = narrative_force * edu_buffer
+                    
                     # Influence trust
-                    citizen.trust_score = max(0, min(100, citizen.trust_score + narrative_force))
-                    # Occasionally update happiness too
-                    if random.random() < 0.1:
-                        citizen.happiness = max(0, min(100, citizen.happiness + narrative_force))
+                    citizen.trust_score = max(0, min(100, citizen.trust_score + impact))
+                    
+                    # Log narrative warfare
+                    if is_disinfo and random.random() < 0.01:
+                        self.last_election_results.insert(0, {
+                            "outcome": "Narrative Warfare",
+                            "winner_name": media.ownership,
+                            "state_id": "Global",
+                            "reason": f"Disinformation campaign detected by {media.id[:4]}"
+                        })
 
     def _process_world_events(self, tick: int):
         """Randomly triggers global events that affect all agents."""
@@ -467,6 +590,13 @@ class SimulationEngine:
              metrics["avg_happiness"] = sum(c.happiness for c in all_citizens) / len(all_citizens)
              metrics["avg_wealth"] = sum(c.wealth for c in all_citizens) / len(all_citizens)
              metrics["avg_trust"] = sum(c.trust_score for c in all_citizens) / len(all_citizens)
+             metrics["inflation"] = self.inflation_rate
+             metrics["unemployment"] = self.unemployment_rate
+             
+             # Calculate Inequality
+             avg_wealth = metrics["avg_wealth"]
+             wealth_sq_diff = sum((c.wealth - avg_wealth)**2 for c in all_citizens)
+             metrics["inequality"] = (wealth_sq_diff / len(all_citizens))**0.5 / (avg_wealth + 0.1)
 
         return {
             "tick": self.scheduler.current_tick,
