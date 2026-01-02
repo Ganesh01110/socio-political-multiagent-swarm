@@ -1,0 +1,52 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install Dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      # Add tests here if available:
+      # - name: Run Tests
+      #   run: cd backend && pytest
+
+  frontend-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Dependencies
+        run: |
+          cd frontend
+          npm install
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm run build
+
+  docker-build:
+    needs: [backend-checks, frontend-checks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Backend Image
+        run: docker build -t sworm-backend ./backend
+      - name: Build Frontend Image
+        run: docker build -t sworm-frontend ./frontend

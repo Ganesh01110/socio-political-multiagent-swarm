@@ -1,0 +1,30 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mariadb+mariadbconnector://root:password@db:3306/koko
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  db:
+    image: mariadb:latest
+    environment:
+      MARIADB_ROOT_PASSWORD: password
+      MARIADB_DATABASE: koko
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
