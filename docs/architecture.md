@@ -15,7 +15,8 @@ graph TD
 
     subgraph Backend (FastAPI)
         Engine[SimulationEngine]
-        RL[QLearningAgent]
+        BrainStack[DecisionPolicy / Strategy]
+        Fuzzy[FuzzyMoralityService]
         Economy[EconomyService]
         Social[InfluenceService]
         Supreme[SupremeLeaderService]
@@ -27,11 +28,12 @@ graph TD
     end
 
     UI -->|API Calls| Engine
+    Engine --> BrainStack
+    BrainStack --> Fuzzy
     Engine --> Economy
     Engine --> Social
     Engine --> Supreme
     Engine --> Election
-    Economy --> RL
     Engine -->|Persist Metrics| DB
     UI -->|Fetch History| DB
     Map -->|Render Agents| UI
@@ -60,6 +62,7 @@ sequenceDiagram
 ```
 
 ## Data Models
-- **Citizen:** `wealth`, `happiness`, `trust_score`, `x/y`.
-- **State Leader:** `wealth`, `greed`, `budget_allocated`, `last_action` (RL), `state_id`.
+- **Citizen:** `wealth`, `happiness`, `trust_score`, `education`, `ideology`, `moral_resistance`.
+- **State Leader:** `wealth`, `greed`, `budget_allocated`, `last_action`, `performance_score`, `state_id`.
 - **Supreme Leader:** `total_budget`, `tenure`, `logic_manager`.
+- **Media:** `ownership`, `bias`, `disinformation_rate`, `algorithmic_amplification`.

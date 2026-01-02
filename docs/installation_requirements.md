@@ -26,6 +26,8 @@ The following Python packages are required (defined in `backend/requirements.txt
 - `aiosqlite`: Asynchronous SQLite support
 - `websockets`: Real-time communication (optional next steps)
 - `torch`: Deep Learning framework for DQNAgents
+- `scikit-learn`: Random Forest, Decision Trees, and kNN for Hybrid Brains
+- `scikit-fuzzy`: Fuzzy Inference System for moral and emotional logic
 - `numpy`: Numerical processing
 
 ### Installation Steps
@@ -109,5 +111,13 @@ python -m uvicorn app.main:app --reload
 To ensure the project is running correctly:
 1. **Check Backend Healthy**: Visit `http://localhost:8000/api/simulation/state` - it should return a JSON object of the world.
 2. **Check Frontend Loaded**: Open the frontend URL - you should see the "Sworm System" title.
-3. **Check AI Integration**: Ensure `torch` is correctly installed by running `python -c "import torch; print(torch.__version__)"`.
+3. **Check AI Integration**: Ensure ML libraries are installed by running:
+   ```bash
+   python -c "import torch, sklearn, skfuzzy; print('AI/ML stack OK')"
+   ```
 4. **Manual Tick**: Click the "Manual Tick" button on the UI and check if the "Tick" count increments and dots move.
+5. **Verify Brains**: Run the advanced verification scripts:
+   ```bash
+   python verify_advanced_strategies.py
+   python verify_fuzzy_logic.py
+   ```

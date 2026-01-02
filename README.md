@@ -5,7 +5,7 @@
 ## 🌟 Vision
 The **Sworm System** is a sophisticated multi-agent simulation designed to explore the emergent dynamics of hierarchical social structures. It models the flow of power, resources, and influence from individual citizens up to a Supreme Lead, mediated by media institutions and external global events. 
 
-By combining **Reinforcement Learning (DQN)** for leaders with **Social Influence Graphs** for citizens, the system creates a living laboratory for political economy and social engineering.
+By combining **Hierarchical Strategy Patterns (DQN, ANN, Rule-Based)** for agents with **Economic Feedback Loops (Inflation/Unemployment)** and **Fuzzy Logic Morality**, the system creates a living laboratory for political economy and social engineering.
 
 ---
 
@@ -24,7 +24,8 @@ By combining **Reinforcement Learning (DQN)** for leaders with **Social Influenc
 ## 🚀 Tech Stack
 
 - **Backend:** FastAPI (Python), SQLAlchemy, Pydantic
-- **AI/ML:** PyTorch (DQN Reinforcement Learning), NumPy
+- **AI/ML:** PyTorch (DQN), Scikit-Learn (Random Forest, Tree, kNN), Scikit-Fuzzy (Morality FIS)
+- **State Logic:** Strategy Pattern Brain Stack with Hybrid Layering
 - **Database:** MariaDB (XAMPP compatible) / SQLite
 - **Frontend:** React, TypeScript, PixiJS (High-performance Swarm Rendering)
 - **DevOps:** Docker, Docker Compose, GitHub Actions (CI/CD)
@@ -68,6 +69,7 @@ docker-compose up --build
 
 ## 📖 Documentation
 Detailed guides are available in the `docs/` folder:
+- [Advanced Agent Brains & Economic Loops](./docs/advanced_agent_brains.md) (Why? What? How?)
 - [Installation & Requirements](./docs/installation_requirements.md)
 - [Project Brainstorming](./brainstorming.md)
 
@@ -77,7 +79,8 @@ Detailed guides are available in the `docs/` folder:
 - [x] **Phase 1-5:** Core mechanics, Elections, and Economy.
 - [x] **Phase 7-8:** AI Upgrades (DQN) and Social Complexity (Factions/Generations).
 - [x] **Phase 9-11:** Hierarchy Expansion (Media/External) and DevOps.
-- [ ] **Phase 12:** Advanced Fuzzy Logic Morality Systems (Planned).
+- [x] **Phase 12:** Advanced Agent Brains with Hybrid Strategies and Fuzzy Logic.
+- [ ] **Phase 13:** Geo-Political Expansion and International Trade (Planned).
 
 ---
 
