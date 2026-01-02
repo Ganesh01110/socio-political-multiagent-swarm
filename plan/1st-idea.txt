@@ -1,0 +1,36 @@
+Let's say I want to build a sworm system that is inspired from real life , visible screen is nation, divided into some fraction called as state , have general people (blue coded individual) , general people elect a person as their leader (green) , leaders will elect a person as their leader, supreme leader (yellow) , supreme leader will allocate some task with some fund before their tenure , then honesty, corruption, propaganda etc comes into the picture , can i integrate diffrent types of learning like supervised , unsupervised, reinforcement and the ANN(any of its type) here or the fuzzy logic here , also as the happenings should be visible in screen i want this program to have frontend , backend type logic so how i can construct it using solid and agile methodology , so according to that give a brainstroming , after getting some ideas i will create a lld and many plan.md files for the developement purpose in details , as i will implement this project by ai , plan.md and promt should include the install check of the version and how should i run the backend (as it will include the ml , ann etc so it wont hurt my pc ) containerazation if needed and the plan should be devided into part by part , and for database can i use maria db for now as i dont have postgresql in local setup , but the code should be in such format it should adaptable for mariadb and postgresql
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Test the simulation in the browser to verify all Phase 7 features (DQN brains, social feedback, elections)?
+Implement Phase 8 from the roadmap (Social Complexity - Factions, Generational Turnover)?
+Add more documentation or polish existing features?
+Something else you have in mind?
+
+
+push to the github into my repository , with deviding the whole developement into 8 to 10 commits , commits shold be sceduled in such a format the commits should be look humanly possible to develope in the time span/ days into the commits are being devided
+
+https://github.com/Ganesh01110/socio-political-multiagent-swarm.git
+
+echo "# socio-political-multiagent-swarm" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/Ganesh01110/socio-political-multiagent-swarm.git
+git push -u origin main
+
+git remote add origin https://github.com/Ganesh01110/socio-political-multiagent-swarm.git
+git branch -M main
+git push -u origin main
