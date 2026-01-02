@@ -34,3 +34,67 @@ git push -u origin main
 git remote add origin https://github.com/Ganesh01110/socio-political-multiagent-swarm.git
 git branch -M main
 git push -u origin main
+
+
+
+make a strategy based brain selection 
+-------------------------
+genral people->rule based or small ANN
+influencer/activist -> ANN
+state leader -> DQN?policy gradient
+supreme leader-> DQN+long horizon reward
+
+sould mirror real life cognitive hierarchhhy
+
+additional behaviour 
+hope (Economic risk taking), fear(vote suppression) , cognitive bias(irrational voting),
+confirmation bias(echo chambers), memory decay(short term thinking)
+
+socio-structure variable
+education clusters
+reliegion/ideology(as abstract vector)
+
+to crete non linear voting pattern
+
+media n info control
+->media owner ship
+algorithemic amplification
+disinformation rate etc..
+for enabling-> narrative warfare
+
+economic feedback loop
+inflation
+unemployment
+blackeconomy
+wealth inequality
+
+can stocastisity be added?
+
+use kNN, decision tree , random forest , svm etc where needed to replicate human like rule behaviour 
+
+do something like trust<0.3 AND unemployment > 0.5 -> protest
+if leader_honesty > 0.65 -> vote_for
+
+for voting desicion, protest participation, policy acceptance
+
+add logs for rule-based agents , synthetic distribution, scenario based genrator etc..
+
+follow a hybrid structure for each individual i.e
+agent brain stack 
+perception layer->ml(svm/rf)
+decision layer -> tree/ rules
+strategic layer -> rl
+social layer -> kNN
+
+
+example for citizen agent 
+Input → SVM (ideology)
+     → KNN (peer opinion)
+     → Decision Tree (vote / protest)
+
+example-> state leader
+    Input → RF (risk analysis)
+     → DQN (long-term fund allocation)     
+
+
+
