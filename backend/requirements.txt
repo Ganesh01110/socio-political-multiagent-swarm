@@ -13,4 +13,4 @@ torchaudio
 mariadb
 python-multipart
 python-jose[cryptography]
-passlib[攜t]
+passlib[bcrypt]
