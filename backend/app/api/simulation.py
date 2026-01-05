@@ -34,10 +34,59 @@ async def get_state():
 async def get_brain():
     return simulation_instance.economy_service.brain.q_table
 
+@router.get("/policy")
+async def get_policy():
+    return simulation_instance.policy_settings
+
+@router.post("/policy")
+async def update_policy(settings: dict):
+    simulation_instance.policy_settings.update(settings)
+    return {"status": "policy_updated", "current": simulation_instance.policy_settings}
+
+@router.get("/settings")
+async def get_settings():
+    return simulation_instance.simulation_settings
+
+@router.post("/settings")
+async def update_settings(settings: dict):
+    simulation_instance.simulation_settings.update(settings)
+    return {"status": "settings_updated", "current": simulation_instance.simulation_settings}
+
+@router.get("/media")
+async def get_media_info():
+    media_agents = [a for a in simulation_instance.agents.values() if a.type == "media"]
+    return [{
+        "id": m.id,
+        "ownership": m.ownership,
+        "owner_id": m.owner_id,
+        "bias": m.bias,
+        "credibility": m.credibility
+    } for m in media_agents]
+
 @router.get("/history")
-async def get_history(db: Session = Depends(get_db)):
+
+async def get_history(state_id: str = None, db: Session = Depends(get_db)):
     """
-    Returns the full history of metrics.
+    Returns history, optionally filtered by state_id.
     """
-    history = db.query(SimulationHistory).order_by(SimulationHistory.tick).all()
+    query = db.query(SimulationHistory)
+    if state_id:
+        query = query.filter(SimulationHistory.state_id == state_id)
+    else:
+        query = query.filter(SimulationHistory.state_id == None) # National data
+        
+    history = query.order_by(SimulationHistory.tick).all()
     return history
+
+
+@router.post("/history/clear")
+async def clear_history(db: Session = Depends(get_db)):
+    """
+    Clears all simulation history.
+    """
+    db.query(SimulationHistory).delete()
+    db.commit()
+    # Reset tick counter in engine
+    simulation_instance.scheduler.current_tick = 0
+    return {"status": "history_cleared"}
+

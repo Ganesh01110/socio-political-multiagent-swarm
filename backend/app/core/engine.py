@@ -9,11 +9,13 @@ from app.core.supreme import SupremeLeaderService
 from app.db.database import SessionLocal, engine, Base
 from app.db.models import SimulationHistory
 from app.core.llm import LLMFeedbackService
+from app.core.fuzzy import FuzzyMoralityService
+from app.core.media import MediaService
+
 from app.ml.brain_stack import (
     DecisionPolicy, RuleBasedPolicy, ANNPolicy, DQNPolicy, HybridPolicy
 )
 from app.core.generators import initialize_agents_with_dist, initialize_media_with_dist, ScenarioGenerator
-from app.core.fuzzy import FuzzyMoralityService
 import random
 import numpy as np
 import logging
@@ -48,7 +50,30 @@ class SimulationEngine:
         self.inflation_rate = 0.02
         self.unemployment_rate = 0.05
         self.black_economy_scale = 0.01
+        self.black_economy_scale = 0.01
         self.fuzzy_morality_service = FuzzyMoralityService()
+        
+        # Policy Settings (Emotion Toggles for Leaders)
+        self.policy_settings = {
+            "consider_trust": True,
+            "consider_fear": True,
+            "consider_happiness": True,
+            "consider_wealth": True
+        }
+
+        # Simulation Settings (Citizen Variable Toggles)
+        self.simulation_settings = {
+            "enable_hope_mechanic": True,
+            "enable_trust_decay": True,
+            "enable_happiness_influence": True,
+            "enable_memory_loss": True,
+            "enable_ideology_shift": True
+        }
+        
+        # Media Service
+        self.media_service = MediaService()
+
+
         
         # Create Tables with error handling
         try:
@@ -73,24 +98,13 @@ class SimulationEngine:
         action_size = 4 # Default actions
         
         if role == "supreme_leader":
+            # Supreme Leader keeps complex DQN for deep strategy
             return DQNPolicy(state_size, action_size, long_horizon=True)
-        elif agent_type == AgentType.LEADER:
-            return DQNPolicy(state_size, action_size)
-        elif role == "influencer":
-            return ANNPolicy(state_size, action_size)
-        elif agent_type == AgentType.CITIZEN:
-            # Most citizens are rule-based
-            if random.random() < 0.8:
-                # Rule: trust < 0.3 AND unemployment > 0.5 -> protest (Action 1)
-                rules = [
-                    {"condition": lambda s: s[0] < 0.3 and s[5] > 0.5, "action": 1},
-                    {"condition": lambda s: s[2] > 0.8, "action": 2}, # High happiness -> Maintain
-                ]
-                return RuleBasedPolicy(rules)
-            else:
-                return ANNPolicy(state_size, action_size, hidden_size=8)
         
-        return RuleBasedPolicy([]) # Fallback
+        # All other agents (Leaders, Influencers, Citizens) use Standard Neural Brains (ANN)
+        # to ensure unified intelligence while remaining performant.
+        return ANNPolicy(state_size, action_size, hidden_size=16)
+
 
     def initialize_world(self):
         # Create States
@@ -152,7 +166,6 @@ class SimulationEngine:
         for media in media_agents:
             self.agents[media.id] = media
 
-        # Phase 9: Create External Factor Agent (L4 - Grey)
         wf_id = str(uuid.uuid4())
         world_agent = ExternalFactorAgent(
             id=wf_id,
@@ -163,6 +176,53 @@ class SimulationEngine:
             y=300
         )
         self.agents[wf_id] = world_agent
+
+        # Phase 10: Initialize Social Graph
+        self._initialize_social_graph()
+
+    def _initialize_social_graph(self):
+        """Creates social connections based on proximity and occupation/faction."""
+        citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN]
+        leaders = [a for a in self.agents.values() if a.type == AgentType.LEADER]
+        
+        # Leaders have larger circles (political network)
+        for leader in leaders:
+            # Connect to some citizens in their state
+            state_citizens = [c for c in citizens if c.state_id == leader.state_id]
+            sample_size = min(len(state_citizens), 15)
+            connections = random.sample(state_citizens, sample_size)
+            for c in connections:
+                leader.social_links.append(c.id)
+                c.social_links.append(leader.id)
+
+        # Citizens connect to neighbors
+        for i, c1 in enumerate(citizens):
+            for c2 in citizens[i+1:]:
+                if c1.state_id == c2.state_id:
+                    dist = ((c1.x - c2.x)**2 + (c1.y - c2.y)**2)**0.5
+                    if dist < 80.0 and random.random() < 0.7:
+                        c1.social_links.append(c2.id)
+                        c2.social_links.append(c1.id)
+        
+        # Assign memory loss to 10% of citizens
+        memory_loss_count = int(len(citizens) * 0.1)
+        memory_loss_citizens = random.sample(citizens, memory_loss_count)
+        for citizen in memory_loss_citizens:
+            citizen.has_memory_loss = True
+        
+        # Connect media to agents for ownership determination
+        media_agents = [a for a in self.agents.values() if a.type == AgentType.MEDIA]
+        for media in media_agents:
+            # Randomly connect to some leaders and citizens
+            potential_owners = leaders + random.sample(citizens, min(5, len(citizens)))
+            connections = random.sample(potential_owners, min(3, len(potential_owners)))
+            for agent in connections:
+                media.social_links.append(agent.id)
+            
+            # Determine initial ownership
+            self.media_service.determine_ownership(media, self.agents)
+
+
 
     def start(self):
         self.is_running = True
@@ -258,8 +318,9 @@ class SimulationEngine:
             
             # Execute economy and get reward
             reward = self.economy_service.process_state_economy(
-                leader, citizens, self.inflation_rate, self.unemployment_rate
+                leader, citizens, self.inflation_rate, self.unemployment_rate, self.policy_settings
             )
+
             
             # Learn Step for Leader
             leader_policy = self.agent_policies.get(leader.id)
@@ -287,19 +348,76 @@ class SimulationEngine:
                  if len(self.last_election_results) > 10:
                      self.last_election_results.pop()
 
+        # Social Dynamics (Every tick)
+        self.social_service.propagate_influence(self.agents)
+        
+        # Apply Simulation Settings Mechanics
+        if self.simulation_settings.get("enable_memory_loss", True) and tick % 20 == 0:
+            # Memory loss: 10% of citizens forget past grievances
+            for citizen in all_citizens:
+                if citizen.has_memory_loss:
+                    citizen.trust_score = 50.0  # Reset to neutral
+                    citizen.happiness = 50.0
+                    citizen.fear = 0.0
+        
+        if self.simulation_settings.get("enable_trust_decay", True):
+            # Natural trust erosion over time
+            for citizen in all_citizens:
+                citizen.trust_score = max(0, citizen.trust_score - 0.5)
+        
+        if self.simulation_settings.get("enable_ideology_shift", True):
+            # Ideology shifts based on social pressure
+            for citizen in all_citizens:
+                peers = [self.agents[pid] for pid in citizen.social_links if pid in self.agents]
+                if peers:
+                    avg_ideology = [sum(p.ideology[i] for p in peers) / len(peers) for i in range(2)]
+                    # Gradual shift toward peer average
+                    citizen.ideology[0] += (avg_ideology[0] - citizen.ideology[0]) * 0.1
+                    citizen.ideology[1] += (avg_ideology[1] - citizen.ideology[1]) * 0.1
+        
+        # Media Influence (Every tick)
+        media_agents = [a for a in self.agents.values() if a.type == AgentType.MEDIA]
+        for media in media_agents:
+            # Update ownership dynamically
+            self.media_service.determine_ownership(media, self.agents)
+            # Calculate bias based on owner
+            bias = self.media_service.calculate_bias(media, self.agents)
+            media.bias = bias
+            # Propagate narrative to citizens
+            self.media_service.propagate_narrative(media, all_citizens, bias)
+
+        
+        # Check for Coups (Every 10 ticks)
+        if tick % 10 == 0:
+            for state in self.nation.states:
+                leader = self.agents.get(state.leader_id)
+                citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN and a.state_id == state.id]
+                if leader and self.election_service.check_for_coup(state.id, leader, citizens):
+                    # COUP SUCCESSFUL
+                    self.last_election_results.insert(0, {
+                        "outcome": "COUP D'ÉTAT",
+                        "winner_name": "Revolutionary Council",
+                        "state_id": state.name,
+                        "reason": "The leader was overthrown by a mass protest movement."
+                    })
+                    # Replace Leader
+                    new_leader = self.election_service.create_new_leader(state.id)
+                    del self.agents[leader.id]
+                    self.agents[new_leader.id] = new_leader
+                    state.leader_id = new_leader.id
+                    self.agent_policies[new_leader.id] = self._create_policy(AgentType.LEADER)
+
         # Trigger Election every 50 ticks
         if tick % 50 == 0:
             self.run_elections()
 
-        # Social Dynamics (Every tick)
-        self.social_service.propagate_influence(list(self.agents.values()))
-        
         # Generational Turnover (Age & Replace)
         self._process_generational_turnover()
 
         # Phase 9: Media & World Events
         self._process_media_narratives()
         self._process_world_events(tick)
+
 
         # Supreme Leader Actions (Tax & Enforcement)
         sl = self.agents.get(self.nation.supreme_leader_id)
@@ -358,25 +476,62 @@ class SimulationEngine:
              wealth_sq_diff = sum((c.wealth - avg_wealth)**2 for c in all_citizens)
              metrics["inequality"] = (wealth_sq_diff / len(all_citizens))**0.5 / (avg_wealth + 0.1)
 
+             # Protest Level
+             metrics["protest_level"] = sum(c.protest_intent for c in all_citizens) / len(all_citizens)
+
+
         # ---------------------------------------------
         # PERSIST DATA (Phase 6)
         # ---------------------------------------------
         if self.db_session:
             try:
+                # 1. Save Global History
                 history_record = SimulationHistory(
                     tick=tick,
+                    state_id=None, # Global
                     avg_happiness=metrics["avg_happiness"],
                     avg_wealth=metrics["avg_wealth"],
                     avg_trust=metrics["avg_trust"],
                     sl_budget=metrics["sl_budget"]
                 )
                 self.db_session.add(history_record)
+
+                # 2. Save Per-State History
+                for state in self.nation.states:
+                    s_citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN and a.state_id == state.id]
+                    if s_citizens:
+                        s_metrics = {
+                            "avg_happiness": sum(c.happiness for c in s_citizens) / len(s_citizens),
+                            "avg_wealth": sum(c.wealth for c in s_citizens) / len(s_citizens),
+                            "avg_trust": sum(c.trust_score for c in s_citizens) / len(s_citizens)
+                        }
+                        s_record = SimulationHistory(
+                            tick=tick,
+                            state_id=state.id,
+                            avg_happiness=s_metrics["avg_happiness"],
+                            avg_wealth=s_metrics["avg_wealth"],
+                            avg_trust=s_metrics["avg_trust"],
+                            sl_budget=0 # Not applicable to single states
+                        )
+                        self.db_session.add(s_record)
+                
                 self.db_session.commit()
             except Exception as e:
+
                 print(f"DB Error during save: {e}")
                 self.db_session.rollback()
         else:
             print("DEBUG: Skipping DB persistence (no active session)")
+
+        # Global stability check
+        if metrics.get("protest_level", 0) > 0.6:
+            self.last_election_results.insert(0, {
+                "outcome": "Mass Protest",
+                "winner_name": "Protesters",
+                "state_id": "Global",
+                "reason": "Widespread social unrest detected due to poor conditions."
+            })
+
 
         return {
             "tick": tick,
@@ -400,8 +555,9 @@ class SimulationEngine:
             ]
 
             winner_id, details = self.election_service.conduct_state_election(
-                state.id, current_leader, citizens
+                state.id, current_leader, citizens, self.agents
             )
+
 
             if winner_id == "challenger":
                 # Replace Leader
