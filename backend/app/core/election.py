@@ -7,51 +7,78 @@ class ElectionService:
     def __init__(self):
         pass
 
-    def conduct_state_election(self, state_id: str, current_leader: StateLeaderAgent, citizens: List[CitizenAgent]) -> Tuple[str, Dict]:
+    def conduct_state_election(self, state_id: str, current_leader: StateLeaderAgent, agents: Dict[str, BaseAgent]) -> Tuple[str, Dict]:
         """
-        Conducts an election for a state.
-        Returns: (Winner ID, Election Details)
+        Conducts an election. Social pressure and cronyism now play major roles.
         """
+        citizens = [a for a in agents.values() if isinstance(a, CitizenAgent) and a.state_id == state_id]
         if not citizens:
-            return current_leader.id, {"reason": "no_citizens"}
+            return current_leader.id, {"winner": "incumbent", "votes": 0}
 
-        # 1. Calculate Challenger Score (Random for now, simulating an opponent)
-        # Challenger has default trust of 50
-        challenger_trust = 50.0 
-        challenger_score = challenger_trust + random.uniform(-10, 10)
-
-        # 2. Calculate Incumbent Score
-        # Sum of citizen trust in the leader
-        incumbent_votes = 0
-        challenger_votes = 0
+        # Calculate average state wealth for cronyism check
+        avg_wealth = sum(c.wealth for c in citizens) / len(citizens)
+        
+        counts = {"incumbent": 0, "challenger": 0}
 
         for citizen in citizens:
-            # Voting Logic:
-            # Probability to vote for incumbent = SIGMOID(Trust - 50)
-            # Simplified: If Trust > 50, mostly vote incumbent.
+            # 1. Cronyism Logic (Favoritism)
+            is_crony = citizen.id in current_leader.social_links
+            favored = citizen.wealth > (avg_wealth * 1.2) # 20% richer than average
             
-            # Noise factor
-            perception = current_leader.trust_score + random.uniform(-5, 5)
-            
-            if perception >= challenger_score:
-                incumbent_votes += 1
-            else:
-                challenger_votes += 1
+            # Check for "Principles Over Profit" (Drastic Ideological difference)
+            ideology_diff = abs(citizen.ideology - current_leader.ideology)
+            principled_dissent = ideology_diff > 0.7
 
-        total_votes = incumbent_votes + challenger_votes
+            vote = "challenger"
+            if is_crony and favored and not principled_dissent:
+                # Highly likely to vote incumbent due to personal benefit
+                if random.random() < 0.95:
+                    vote = "incumbent"
+            else:
+                # 2. Regular Voting Logic (Trust, Fear, Social Pressure)
+                # Influence of social circle (Peer Pressure)
+                peers = [agents[pid] for pid in citizen.social_links if pid in agents]
+                peer_trust_avg = sum(p.trust_score for p in peers) / len(peers) if peers else citizen.trust_score
+                
+                # Effective trust is a blend of personal experience and peer pressure
+                effective_trust = (citizen.trust_score * 0.6) + (peer_trust_avg * 0.4)
+                
+                # Fear impact: High fear increases incumbent vote (compliance)
+                fear_bias = citizen.fear * 30 
+                
+                incumbent_score = effective_trust + fear_bias
+                challenger_score = random.uniform(30, 80)
+                
+                if incumbent_score > challenger_score:
+                    vote = "incumbent"
+            
+            counts[vote] += 1
+
+        winner = "incumbent" if counts["incumbent"] >= counts["challenger"] else "challenger"
         
-        details = {
-            "incumbent_id": current_leader.id,
-            "incumbent_votes": incumbent_votes,
-            "challenger_votes": challenger_votes,
-            "total_votes": total_votes,
-            "state_id": state_id
+        return (current_leader.id if winner == "incumbent" else f"new_leader_{state_id}"), {
+            "winner": winner,
+            "counts": counts,
+            "total": len(citizens)
         }
 
-        if incumbent_votes >= challenger_votes:
-            return current_leader.id, details
-        else:
-            return "challenger", details
+    def check_for_coup(self, state_id: str, current_leader: StateLeaderAgent, citizens: List[CitizenAgent]) -> bool:
+        """
+        Checks if conditions are met for a coup.
+        Triggers if Avg Trust < 20 AND Avg Protest Intent > 0.7
+        """
+        if not citizens: return False
+        
+        avg_trust = sum(c.trust_score for c in citizens) / len(citizens)
+        avg_protest = sum(c.protest_intent for c in citizens) / len(citizens)
+        
+        # Coup threshold
+        if avg_trust < 20.0 and avg_protest > 0.7:
+            # Random chance to succeed
+            return random.random() < 0.3
+        
+        return False
+
 
     def create_new_leader(self, state_id: str) -> StateLeaderAgent:
         """Generates a new random leader agent to replace the loser."""
