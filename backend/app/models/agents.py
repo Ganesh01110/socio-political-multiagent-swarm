@@ -27,6 +27,8 @@ class BaseAgent(BaseModel):
     last_state_vec: Optional[Any] = Field(default=None, exclude=True)
     last_action: int = -1
     moral_resistance: float = 0.5
+    social_links: List[str] = Field(default_factory=list) # IDs of connections
+
     
     class Config:
         use_enum_values = True
@@ -43,6 +45,10 @@ class CitizenAgent(BaseAgent):
     # Citizen specific emotions/biases
     fear: float = 0.0 # Vote suppression, protest avoidance
     hope: float = 0.5 # Economic risk taking
+    protest_intent: float = 0.0 # Propensity to join a movement
+    has_memory_loss: bool = False # 10% of population forgets past grievances
+
+
 
 class StateLeaderAgent(BaseAgent):
     type: AgentType = AgentType.LEADER
@@ -67,9 +73,11 @@ class MediaAgent(BaseAgent):
     bias: float = 0.0 # Negative is anti-establishment, Positive is pro-establishment
     reach: float = 150.0
     # Media control variables
-    ownership: str = "Independent"
+    ownership: str = "Independent" # INDUSTRIALIST, POLITICIAN_ALLY, COMMON_CITIZEN, EXTERNAL_FACTOR
+    owner_id: Optional[str] = None # ID of the agent who owns this media
     disinformation_rate: float = 0.05
     algorithmic_amplification: float = 1.0
+
 
 class ExternalFactorAgent(BaseAgent):
     type: AgentType = AgentType.EXTERNAL
