@@ -7,48 +7,51 @@ class InfluenceService:
     def __init__(self):
         pass
 
-    def propagate_influence(self, all_agents: List[CitizenAgent]):
+    def propagate_influence(self, all_agents: Dict[str, any]):
         """
-        Citizens influence their neighbors' Trust Scores and Ideology.
-        Includes:
-        - Education clusters (higher education = less prone to disinformation)
-        - Ideological similarity (Echo chambers)
+        Agents influence their social circle.
+        Implements Threshold Influence: 
+        If > 50% of the circle has low trust, others are likely to follow.
         """
-        citizens = [a for a in all_agents if a.type == AgentType.CITIZEN]
-        influence_radius = 60.0 
-        base_learning_rate = 0.1
+        agent_list = list(all_agents.values())
+        citizens = [a for a in agent_list if a.type == AgentType.CITIZEN]
+        base_learning_rate = 0.2
 
-        for i, agent_a in enumerate(citizens):
-            for j, agent_b in enumerate(citizens):
-                if i == j: continue
-                
-                dist = math.sqrt((agent_a.x - agent_b.x)**2 + (agent_a.y - agent_b.y)**2)
-                
-                if dist < influence_radius:
-                    # Ideological Similarity (Cosine Similarity approx)
-                    ideology_a = np.array(agent_a.ideology)
-                    ideology_b = np.array(agent_b.ideology)
-                    sim = np.dot(ideology_a, ideology_b) / (np.linalg.norm(ideology_a)*np.linalg.norm(ideology_b) + 0.001)
-                    
-                    # Echo Chamber Effect: Higher influence if ideologies are similar
-                    # If similarity is low, they might even diverge (polarization)
-                    influence_weight = base_learning_rate * (sim if sim > 0 else 0.5)
-                    
-                    # Education Effect: Higher education agents are harder to influence but more influential
-                    edu_factor = agent_a.education / (agent_b.education + 0.1)
-                    total_lp = influence_weight * edu_factor
-                    
-                    # Influence Trust
-                    diff_trust = agent_a.trust_score - agent_b.trust_score
-                    agent_b.trust_score = max(0, min(100, agent_b.trust_score + diff_trust * total_lp))
-                    
-                    # Influence Ideology (Converge toward peer)
-                    if sim > 0:
-                        agent_b.ideology = [
-                            max(-1.0, min(1.0, b + (a - b) * total_lp * 0.5))
-                            for a, b in zip(agent_a.ideology, agent_b.ideology)
-                        ]
-                    
-                    # Confirmation Bias (Memory Decay)
-                    # Past influences decay unless reinforced
-                    agent_b.trust_score *= (1.0 - agent_b.memory_decay * 0.1)
+        for agent in citizens:
+            if not agent.social_links: continue
+            
+            # Get data from peers
+            peers = [all_agents[link_id] for link_id in agent.social_links if link_id in all_agents]
+            if not peers: continue
+
+            # 1. Threshold Check (Social Tipping Point)
+            # Count peers with trust < 30
+            disaffected_peers = [p for p in peers if p.trust_score < 30]
+            disaffection_ratio = len(disaffected_peers) / len(peers)
+
+            if disaffection_ratio > 0.5:
+                # Rapid contagion of distrust
+                agent.trust_score = max(0, agent.trust_score - 5.0)
+                agent.protest_intent = min(1.0, agent.protest_intent + 0.1)
+            else:
+                # Normal gradual influence
+                avg_peer_trust = sum(p.trust_score for p in peers) / len(peers)
+                trust_diff = avg_peer_trust - agent.trust_score
+                agent.trust_score = max(0, min(100, agent.trust_score + trust_diff * base_learning_rate))
+                agent.protest_intent = max(0, agent.protest_intent - 0.05)
+
+            # 2. Ideological Conversion (Groupthink)
+            avg_peer_ideology = np.mean([p.ideology for p in peers], axis=0)
+            agent.ideology = [
+                max(-1.0, min(1.0, i + (pi - i) * 0.05))
+                for i, pi in zip(agent.ideology, avg_peer_ideology)
+            ]
+
+            # 3. Fear/Pressure Effect from Media (Proximity to Media Agents)
+            # This is already handled in engine._process_media_narratives, 
+            # but we could link it here too if needed.
+
+        # Memory Decay
+        for agent in citizens:
+            agent.trust_score *= (1.0 - agent.memory_decay * 0.01)
+

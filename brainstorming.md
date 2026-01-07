@@ -12,8 +12,11 @@
     -   🟡 **Supreme Leader:** Elected by state leaders.
 
 ## 2. Simulation Dynamics
--   **Election Cycle:** Periodic voting based on "Opinion" or "Trust" scores.
+-   **Election Cycle:** Periodic voting based on "Opinion", "Trust", and **Social Pressure** (from peers).
+-   **Social Graph:** (New) Agents have explicit connections (`social_links`). High disaffection in a social circle triggers a "Tipping Point" (Threshold Influence).
+-   **Political Stability:** If trust collapses, a **Coup d'état** can replace leaders outside of elections.
 -   **Economy:**
+
     -   **Supreme Leader** allocates the national budget to **Leaders** for specific tasks.
     -   **Leaders** distribute funds to **General People** to execute tasks.
     -   **Corruption:** At each step, an agent can choose to "siphon" funds (Corruption) or pass them down (Honesty).
