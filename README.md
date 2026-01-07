@@ -63,9 +63,16 @@ By combining **Hierarchical Strategy Patterns (DQN, ANN, Rule-Based)** for agent
 3. **Frontend Setup:**
    ```bash
    cd frontend
-   npm install
+   npm ci
    npm run dev
    ```
+
+### Running Tests
+```bash
+cd backend
+pytest -v
+```
+
 
 ### Quick Start (Docker)
 ```bash

@@ -94,7 +94,14 @@ Input → SVM (ideology)
 
 example-> state leader
     Input → RF (risk analysis)
-     → DQN (long-term fund allocation)     
+     → DQN (long-term fund allocation) 
+     
+i want to implement some features like in frontend there should be the toggle buttons for the emotions for the politicians like for trust , fear , happiness etc of the normal people , as like if the politicians are taking these consideration how they behave if not how they behave (for reward and punishment etc in the model if applicable) , by default all should be on , introduce other emotion from real life if apllicable with logic , also for the re-election (if happens) the close circle of the politician should vote for politician as (if) in past politician have favored them with more money than normal people unless they have some hidden agenda and i think the different stack for different individual isnt making any sense (as in real life every body has almost same level of intelligence and in my implementation its not - correct me if im wrong (and if i implement same level of intelligence to everyone will it hamper my pc while running the models ??))
+
+implemnt the graphs(happieness-trust-wealth) for different states (as many states are present in an instance) in tab manner to show the data of peoples from different state and also keep the country wide graph(happieness-trust-wealth)
+
+also explain in a document what should be the expected behaviour of each indivial(common people , industrialist , media institite , state leader and supreme leader) in 1st tick , 2nd tick till n with each transaction of money and what is really happening. and what is the variable/value as input for each individuals model and outputs !! 
+
 
 
 

@@ -19,16 +19,27 @@ The backend handles the simulation logic, AI (DQN) training, and database persis
 
 ### Requirements
 The following Python packages are required (defined in `backend/requirements.txt`):
-- `fastapi`: Web framework
-- `uvicorn`: ASGI server
-- `pydantic`: Data validation
-- `sqlalchemy`: Database ORM
-- `aiosqlite`: Asynchronous SQLite support
-- `websockets`: Real-time communication (optional next steps)
-- `torch`: Deep Learning framework for DQNAgents
-- `scikit-learn`: Random Forest, Decision Trees, and kNN for Hybrid Brains
-- `scikit-fuzzy`: Fuzzy Inference System for moral and emotional logic
-- `numpy`: Numerical processing
+
+**Core API:**
+- `fastapi==0.109.0`: Web framework
+- `uvicorn[standard]==0.27.0`: ASGI server
+- `pydantic==2.5.3`: Data validation
+
+**Database:**
+- `sqlalchemy==2.0.25`: Database ORM
+- `aiosqlite==0.19.0`: Asynchronous SQLite support
+
+**AI/ML:**
+- `numpy==1.26.3`: Numerical processing
+- `scikit-learn==1.4.0`: Random Forest, Decision Trees, and kNN for Hybrid Brains
+- `scikit-fuzzy==0.4.2`: Fuzzy Inference System for moral and emotional logic
+- `torch==2.1.2`: Deep Learning framework for DQN (CPU-only version)
+
+**Testing (Optional):**
+- `pytest==7.4.4`: Testing framework
+- `pytest-asyncio==0.23.3`: Async test support
+- `httpx==0.26.0`: HTTP client for API testing
+
 
 ### Installation Steps
 1. Navigate to the backend directory:
@@ -52,6 +63,14 @@ The following Python packages are required (defined in `backend/requirements.txt
 python -m uvicorn app.main:app --reload --port 8000
 ```
 The API will be available at `http://localhost:8000`.
+
+### Running Tests
+```bash
+cd backend
+pytest -v
+```
+This will run all API tests in the `tests/` directory.
+
 
 ---
 

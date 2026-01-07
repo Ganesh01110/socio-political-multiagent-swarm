@@ -1,16 +1,19 @@
-fastapi
-uvicorn
-pydantic
-sqlalchemy
-aiosqlite
-websockets
-numpy
-scikit-learn
-scikit-fuzzy
-torch
-torchvision
-torchaudio
-mariadb
-python-multipart
-python-jose[cryptography]
-passlib[bcrypt]
+# Core API
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+
+# Database
+sqlalchemy==2.0.25
+aiosqlite==0.19.0
+
+# AI/ML
+numpy==1.26.3
+scikit-learn==1.4.0
+scikit-fuzzy==0.4.2
+torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu
+
+# Testing (optional, for development)
+pytest==7.4.4
+pytest-asyncio==0.23.3
+httpx==0.26.0
