@@ -10,11 +10,13 @@ The core goal of this upgrade was to transform the Sworm System from a simple ag
 This implementation introduces a hierarchical decision-making architecture:
 
 ### 1. The Brain Stack (Strategy Pattern)
-Individual agents no longer have hardcoded logic. Instead, they are assigned a **Policy**:
-- **RuleBased**: High-efficiency logic for general citizens.
-- **ANN (Neural Network)**: Adaptive logic for influencers and activists.
-- **DQN (Deep Q-Learning)**: Long-horizon strategic planning for state and supreme leaders.
-- **Hybrid Brain**: A multi-layered architecture for complex agents, utilizing Random Forests for perception and kNN for social clustering.
+Individual agents are assigned a **Policy** based on their role:
+- **ANN (Neural Network)**: Standard intelligence for all citizens and state leaders (16 hidden nodes). Ensures "human-level" baseline intelligence equality.
+- **DQN (Deep Q-Learning)**: Long-horizon strategic planning reserved for the Supreme Leader only.
+- **Hybrid Brain**: (Legacy) Multi-layered architecture for complex agents, utilizing Random Forests for perception and kNN for social clustering.
+
+**Intelligence Equality**: To simulate realistic human society, all citizens and state leaders now use the same ANN architecture. This prevents "super-intelligent" leaders from dominating and creates more emergent, unpredictable dynamics.
+
 
 ### 2. Socio-Economic Feedback Loops
 - **The Triangle of Instability**: Inflation, Unemployment, and Inequality now interact in a closed loop, affecting agent happiness and trust.
@@ -46,6 +48,38 @@ python verify_advanced_strategies.py
 - **Trust Scores**: Public perception of leadership.
 - **Corruption Level**: Funds diverted by leaders.
 - **Ideological Proximity**: How "echo chambers" form based on shared vectors.
+- **Protest Intent**: Propensity of agents to join social movements.
+
+---
+
+## 5. Social Circles & Threshold Influence (Tipping Points)
+The latest upgrade introduces a **Social Graph** layer:
+- **Explicit Connections**: Agents are no longer solely influenced by spatial proximity. They have specific `social_links` representing friends, colleagues, or political networks.
+- **The 50% Rule (Tipping Point)**: Implements threshold-based collective behavior. If more than 50% of an agent's circle shares a specific state (e.g., trust < 30), the agent's trust drops exponentially faster. This creates realistic "cascading failures" in public trust.
+- **Political Consequences**: 
+    - **Coup d'état**: If aggregate national trust falls below a critical threshold while protest intent is high, a coup can occur, replacing the leader outside of the election cycle.
+    - **Fear & Pressure**: Voting logic now accounts for peer pressure from social circles and fear induced by propaganda.
+    - **Cronyism**: Agents in a leader's social circle who have been economically favored vote for the incumbent with 95% probability (unless ideologically opposed).
+
+## 6. Simulation Control Toggles
+The latest version introduces **runtime control** over citizen mechanics:
+
+### Citizen Variable Toggles
+- **Hope Mechanic**: Controls whether hope affects economic risk-taking
+- **Trust Decay**: Natural erosion of trust over time (-0.5 per tick)
+- **Happiness Influence**: Whether happiness affects productivity and voting
+- **Memory Loss**: 10% of citizens periodically forget past grievances (resets trust/happiness every 20 ticks)
+- **Ideology Shift**: Beliefs gradually shift toward peer average based on social pressure
+
+### Dynamic Media Ownership
+- **Ownership Types**: Industrialist, Politician Ally, Common Citizen, External Factor, Independent
+- **Bias Calculation**: Media bias changes based on who owns it
+  - Politician-owned media: Strongly pro-establishment (+0.8 bias)
+  - Industrialist-owned: Pro-business (+0.4 to +0.6)
+  - Common citizen-owned: Populist/anti-establishment (-0.3 to -0.8)
+- **Narrative Propagation**: Media influences citizen trust, fear, and protest intent based on bias
+
+
 
 ---
 
@@ -64,7 +98,7 @@ python verify_advanced_strategies.py
 ---
 
 ## 🔮 Future Ideas & Integration
-- **Fuzzy Logic Morality**: Implementing a "Conscience" layer where agents evaluate the ethical weight of their actions beyond pure utility.
 - **Cultural Evolution**: Using Federated Learning concepts to allow agents to "pass down" successful decision-making patterns to the next generation.
-- **LLM-Reasoning**: Integrating LLMs to generate natural language explanations for agent decisions (e.g., *"I chose to protest because my trust in the leader is low and my neighbors are unhappy"*).
+- **LLM-Reasoning**: Integrating LLMs to generate natural language explanations for agent decisions.
 - **Global Trade Layer**: Expanding the economy to include resource trading between different state simulations.
+

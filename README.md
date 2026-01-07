@@ -25,10 +25,17 @@ By combining **Hierarchical Strategy Patterns (DQN, ANN, Rule-Based)** for agent
 
 - **Backend:** FastAPI (Python), SQLAlchemy, Pydantic
 - **AI/ML:** PyTorch (DQN), Scikit-Learn (Random Forest, Tree, kNN), Scikit-Fuzzy (Morality FIS)
-- **State Logic:** Strategy Pattern Brain Stack with Hybrid Layering
-- **Database:** MariaDB (XAMPP compatible) / SQLite
+- **State Logic:** Unified ANN Intelligence (16-node MLP) for Citizens & Leaders, DQN for Supreme Leader
+- **Database:** MariaDB (XAMPP compatible) / SQLite with per-state history tracking
 - **Frontend:** React, TypeScript, PixiJS (High-performance Swarm Rendering)
+- **Dynamics:** 
+  - Social Circle Graphing with Threshold Influence (Tipping Points)
+  - Political Coup Mechanics & Cronyism in Elections
+  - Dynamic Media Ownership (Industrialist, Politician, Citizen, External)
+  - Simulation Control Toggles (Hope, Trust Decay, Memory Loss, Ideology Shift)
 - **DevOps:** Docker, Docker Compose, GitHub Actions (CI/CD)
+
+
 
 ---
 
@@ -79,8 +86,15 @@ Detailed guides are available in the `docs/` folder:
 - [x] **Phase 1-5:** Core mechanics, Elections, and Economy.
 - [x] **Phase 7-8:** AI Upgrades (DQN) and Social Complexity (Factions/Generations).
 - [x] **Phase 9-11:** Hierarchy Expansion (Media/External) and DevOps.
-- [x] **Phase 12:** Advanced Agent Brains with Hybrid Strategies and Fuzzy Logic.
-- [ ] **Phase 13:** Geo-Political Expansion and International Trade (Planned).
+- [x] **Phase 12:** Advanced Agent Brains with Hybrid Strategies, Fuzzy Logic, and Social Graphing.
+- [x] **Phase 13:** Simulation Control Toggles & Dynamic Media Ownership (Complete).
+  - Unified ANN intelligence for realistic human-level equality
+  - Citizen mechanics toggles (Hope, Trust Decay, Memory Loss, Ideology Shift)
+  - Media ownership based on social connections with dynamic bias
+  - Cronyism in elections and policy-aware leader rewards
+- [ ] **Phase 14:** Geo-Political Expansion and International Trade (Planned).
+
+
 
 ---
 

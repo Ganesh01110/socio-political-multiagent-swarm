@@ -14,13 +14,17 @@ The simulation has evolved into a complex ecosystem with Reinforcement Learning 
 - Actions: Invest, Steal, Maintain, Propaganda.
 - Rewards: Positive for re-election, negative for defeat.
 
-### 3. Social Dynamics & Propaganda
-- **Influence Propagation:** Citizens influence their neighbors' trust levels, causing social "proof" and clustering.
-- **Propaganda:** Leaders can spend budget to artificially boost trust in their state, visualized with a golden ring.
+### 3. Social Dynamics & Tipping Points
+- **Social Graph:** Agents now have explicit social links (friends/colleagues).
+- **Threshold Influence:** Implements a "50% rule" where social circles can rapidly tip into distrust, causing cascading trust failures.
+- **Propaganda:** Leaders can spend budget to artificially boost trust, visualized with a golden ring.
 
-### 4. Supreme Leader & Metrics
-- **Top-Down Control:** The Supreme Leader reclaimed taxes and fired incompetent leaders (low trust).
+
+### 4. Supreme Leader & Coup Mechanics
+- **Top-Down Control:** The Supreme Leader reclaims taxes and fires incompetent leaders.
+- **Coup d'État:** If trust is extremely low and social pressure is high, a coup can occur, overthrowing the leader.
 - **Metrics Dashboard:** Real-time tracking of Global Happiness, Avg Trust, and Wealth.
+
 
 ### 5. Persistence & Analytics
 - **Database:** All metrics are persisted to a SQLite database (`sworm_history.db`).
@@ -42,5 +46,7 @@ The simulation has evolved into a complex ecosystem with Reinforcement Learning 
 1. Open the frontend (usually `http://localhost:5173`).
 2. Click **Manual Tick** repeatedly.
 3. Observe the **Golden Rings** (Propaganda) appearing around leaders.
+4. Use the **Clear History** button to reset simulation trends for a fresh population.
 4. Watch the **National Trends Chart** at the bottom to see how happiness and trust fluctuate over time.
+
 5. Check the **News Feed** for election results and "Leader Executed" alerts.
