@@ -57,11 +57,19 @@ class MediaService:
         media.ownership = MediaOwnership.INDEPENDENT
         media.owner_id = None
     
-    def calculate_bias(self, media: MediaAgent, all_agents: Dict[str, BaseAgent]) -> float:
+    def calculate_bias(self, media: MediaAgent, all_agents: Dict[str, BaseAgent], override: str = "auto") -> float:
         """
-        Calculates media bias based on ownership.
+        Calculates media bias based on ownership OR global override.
         Returns: -1.0 (anti-establishment) to +1.0 (pro-establishment)
         """
+        if override == "pro_state":
+            return 0.9 + random.uniform(-0.05, 0.05)
+        elif override == "anti_state":
+            return -0.9 + random.uniform(-0.05, 0.05)
+        elif override == "neutral":
+            return random.uniform(-0.1, 0.1)
+            
+        # Default 'auto' logic
         if media.ownership == MediaOwnership.POLITICIAN_ALLY and media.owner_id:
             # Strongly pro-incumbent
             return 0.8 + random.uniform(-0.1, 0.1)
@@ -85,6 +93,30 @@ class MediaService:
         
         # Independent media
         return random.uniform(-0.2, 0.2)
+
+    def get_disinfo_headline(self, bias: float) -> str:
+        """Returns a specific piece of 'fake news' based on the current bias."""
+        pro_state_lies = [
+            "Secret data proves Leader is a genius!",
+            "Protesters actually found to be paid foreign actors.",
+            "Economy 1000% stronger than reported, say 'experts'.",
+            "Neighboring nations envy our glorious leadership.",
+            "Leader saves elderly couple from burning building (unverified)."
+        ]
+        anti_state_lies = [
+            "LEAKED: Leader has secret offshore gold stash.",
+            "Studies find that current policies cause memory loss.",
+            "Leader's 'Close Circle' seen fleeing with suitcases of cash.",
+            "Is the Leader a lizard? Our investigative report inside.",
+            "Citizens reporting 'ghost agents' stealing their crops."
+        ]
+        
+        if bias > 0.3:
+            return random.choice(pro_state_lies)
+        elif bias < -0.3:
+            return random.choice(anti_state_lies)
+        return "Strange lights seen over the capital; citizens confused."
+
     
     def propagate_narrative(self, media: MediaAgent, citizens: List[CitizenAgent], bias: float) -> None:
         """

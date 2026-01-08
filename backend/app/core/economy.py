@@ -90,6 +90,15 @@ class EconomyService:
                 citizen.happiness += 1
                 
             citizen.happiness = max(0, min(100, citizen.happiness + happiness_modifier))
+            
+            # 2.1 Wealth Disparity Penalty
+            # If leader is > 100x wealthier than citizen, trust drops proportionately
+            if leader.wealth > (citizen.wealth * 100) and citizen.wealth > 0:
+                disparity_gap = leader.wealth / (citizen.wealth + 1)
+                penalty = min(10, disparity_gap / 1000.0) # Cap penalty
+                citizen.trust_score = max(0, citizen.trust_score - penalty)
+                citizen.protest_intent = min(1.0, citizen.protest_intent + (penalty / 50.0))
+
 
         # 3. Calculate Reward (Modified by Toggles)
         step_reward = personal_gain 

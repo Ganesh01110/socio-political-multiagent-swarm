@@ -70,8 +70,11 @@ class SimulationEngine:
             "enable_ideology_shift": True,
             "inheritance_tax_rate": 0.5, # Default 50%
             "corruption_efficiency": 0.5, # 50% of stolen money reaches leader
-            "show_social_graph": False
+            "show_social_graph": False,
+            "media_bias_override": "auto", # auto, neutral, pro_state, anti_state
+            "enable_unemployment_election_impact": False
         }
+
         
         # State Colors for Network Graph
         self.state_colors = [
@@ -364,6 +367,8 @@ class SimulationEngine:
 
         # Social Dynamics (Every tick)
         self.social_service.propagate_influence(self.agents)
+        self._check_for_coups()
+
         
         # Apply Simulation Settings Mechanics
         if self.simulation_settings.get("enable_memory_loss", True) and tick % 20 == 0:
@@ -426,14 +431,26 @@ class SimulationEngine:
         
         # Media Influence (Every tick)
         media_agents = [a for a in self.agents.values() if a.type == AgentType.MEDIA]
+        override = self.simulation_settings.get("media_bias_override", "auto")
         for media in media_agents:
             # Update ownership dynamically
             self.media_service.determine_ownership(media, self.agents)
-            # Calculate bias based on owner
-            bias = self.media_service.calculate_bias(media, self.agents)
+            # Calculate bias based on owner OR override
+            bias = self.media_service.calculate_bias(media, self.agents, override)
             media.bias = bias
             # Propagate narrative to citizens
             self.media_service.propagate_narrative(media, all_citizens, bias)
+            
+            # Detailed Disinfo Reporting
+            if random.random() < media.disinformation_rate * 0.2: # Limit spam
+                headline = self.media_service.get_disinfo_headline(bias)
+                self.last_election_results.insert(0, {
+                    "outcome": "ALERT: DISINFO",
+                    "winner_name": media.ownership,
+                    "state_id": "Global",
+                    "reason": f"[{media.id[:4]}] {headline}"
+                })
+
 
         
         # Check for Coups (Every 10 ticks)
@@ -603,9 +620,18 @@ class SimulationEngine:
                 if a.type == AgentType.CITIZEN and a.state_id == state.id
             ]
 
+            # Pass settings with local state info
+            current_settings = self.simulation_settings.copy()
+            current_settings["state_unemployment"] = getattr(state, 'unemployment_rate', 0.05)
+            
+            # Injecting into a temporary settings dict inside the agents dict for the service to find
+            agents_with_context = self.agents.copy()
+            agents_with_context["sim_settings"] = current_settings
+
             winner_id, details = self.election_service.conduct_state_election(
-                state.id, current_leader, citizens, self.agents
+                state.id, current_leader, agents_with_context
             )
+
 
 
             if winner_id == "challenger":
@@ -708,7 +734,46 @@ class SimulationEngine:
         
         self.agents.update(new_citizens)
 
+    def _check_for_coups(self):
+        """Checks if socio-economic conditions trigger a Coup d'état in any state."""
+        for state in self.nation.states:
+            citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN and a.state_id == state.id]
+            if not citizens: continue
+            
+            avg_trust = sum(c.trust_score for c in citizens) / len(citizens)
+            avg_protest = sum(c.protest_intent for c in citizens) / len(citizens)
+            
+            # Coup Trigger: Low Trust AND High Protest Level
+            if avg_trust < 20 and avg_protest > 0.6:
+                # 30% chance of coup triggering per tick when conditions are met
+                if random.random() < 0.3:
+                    current_leader = self.agents.get(state.leader_id)
+                    if not current_leader: continue
+                    
+                    # Major penalty for deposed leader
+                    policy = self.agent_policies.get(current_leader.id)
+                    if policy and hasattr(current_leader, 'last_state_vec'):
+                         policy.learn(current_leader.last_state_vec, current_leader.last_action, -500.0, current_leader.last_state_vec, True)
+                    
+                    # Replace with a Fresh Start
+                    new_leader = self.election_service.create_new_leader(state.id)
+                    del self.agents[current_leader.id]
+                    if current_leader.id in self.agent_policies: del self.agent_policies[current_leader.id]
+                    
+                    self.agents[new_leader.id] = new_leader
+                    self.agent_policies[new_leader.id] = self._create_policy(AgentType.LEADER)
+                    state.leader_id = new_leader.id
+                    
+                    # Log to News
+                    self.last_election_results.insert(0, {
+                        "outcome": "COUP D'ÉTAT",
+                        "winner_name": "Military/Revolutionary Council",
+                        "state_id": state.id[:8],
+                        "reason": f"Incumbent deposed due to extreme social unrest and trust collapse ({avg_trust:.1f}%)."
+                    })
+
     def _process_media_narratives(self):
+
         """Media agents influence trust in their proximity."""
         media_agents = [a for a in self.agents.values() if a.type == AgentType.MEDIA]
         citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN]
@@ -791,7 +856,31 @@ class SimulationEngine:
                     else:
                         agent.wealth = max(0, agent.wealth + impact)
 
+    def get_state(self):
+        # Calculate Global Metrics for consistency
+        all_citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN]
+        sl = self.agents.get(self.nation.supreme_leader_id)
+        metrics = {
+            "avg_happiness": 0,
+            "avg_wealth": 0,
+            "avg_trust": 0,
+            "sl_budget": sl.total_budget if sl else 0
+        }
+        
+        if all_citizens:
+             metrics["avg_happiness"] = sum(c.happiness for c in all_citizens) / len(all_citizens)
+             metrics["avg_wealth"] = sum(c.wealth for c in all_citizens) / len(all_citizens)
+             metrics["avg_trust"] = sum(c.trust_score for c in all_citizens) / len(all_citizens)
+             metrics["inflation"] = self.inflation_rate
+             metrics["unemployment"] = self.unemployment_rate
+             
+             # Calculate Inequality
+             avg_wealth = metrics["avg_wealth"]
+             wealth_sq_diff = sum((c.wealth - avg_wealth)**2 for c in all_citizens)
+             metrics["inequality"] = (wealth_sq_diff / len(all_citizens))**0.5 / (avg_wealth + 0.1)
+
         # Per-State Summary Metrics
+
         state_metrics = {}
         for i, state in enumerate(self.nation.states):
             s_citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN and a.state_id == state.id]
@@ -805,8 +894,12 @@ class SimulationEngine:
                 "population": len(s_citizens),
                 "avg_wealth_citizens": sum(c.wealth for c in s_citizens) / len(s_citizens) if s_citizens else 0,
                 "leader_wealth": s_leader.wealth if s_leader else 0,
+                "unemployment_rate": random.uniform(0.02, 0.15) if self.scheduler.current_tick % 10 == 0 else (getattr(state, 'unemployment_rate', 0.05)),
                 "color": color
             }
+            # Cache it back to state object for use in elections
+            state.unemployment_rate = state_metrics[state.id]["unemployment_rate"]
+
 
         return {
             "tick": self.scheduler.current_tick,
