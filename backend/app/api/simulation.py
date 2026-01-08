@@ -70,10 +70,14 @@ async def get_history(state_id: str = None, db: Session = Depends(get_db)):
     Returns history, optionally filtered by state_id.
     """
     query = db.query(SimulationHistory)
-    if state_id:
+    if state_id and state_id != "all":
         query = query.filter(SimulationHistory.state_id == state_id)
-    else:
-        query = query.filter(SimulationHistory.state_id == None) # National data
+    elif state_id == None:
+        # If no state_id provided, default to all history so frontend can filter
+        # but we could also keep it as national if we want to be strict.
+        # Given current frontend logic, returning all is better for performance.
+        pass 
+
         
     history = query.order_by(SimulationHistory.tick).all()
     return history
