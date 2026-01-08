@@ -61,14 +61,27 @@ class SimulationEngine:
             "consider_wealth": True
         }
 
-        # Simulation Settings (Citizen Variable Toggles)
+        # Simulation Settings
         self.simulation_settings = {
             "enable_hope_mechanic": True,
             "enable_trust_decay": True,
             "enable_happiness_influence": True,
             "enable_memory_loss": True,
-            "enable_ideology_shift": True
+            "enable_ideology_shift": True,
+            "inheritance_tax_rate": 0.5, # Default 50%
+            "corruption_efficiency": 0.5, # 50% of stolen money reaches leader
+            "show_social_graph": False
         }
+        
+        # State Colors for Network Graph
+        self.state_colors = [
+            "#2196F3", # Blue
+            "#4CAF50", # Green
+            "#FF9800", # Orange
+            "#E91E63", # Pink
+            "#9C27B0"  # Purple
+        ]
+
         
         # Media Service
         self.media_service = MediaService()
@@ -318,8 +331,9 @@ class SimulationEngine:
             
             # Execute economy and get reward
             reward = self.economy_service.process_state_economy(
-                leader, citizens, self.inflation_rate, self.unemployment_rate, self.policy_settings
+                leader, citizens, self.inflation_rate, self.unemployment_rate, self.policy_settings, self.simulation_settings
             )
+
 
             
             # Learn Step for Leader
@@ -374,6 +388,41 @@ class SimulationEngine:
                     # Gradual shift toward peer average
                     citizen.ideology[0] += (avg_ideology[0] - citizen.ideology[0]) * 0.1
                     citizen.ideology[1] += (avg_ideology[1] - citizen.ideology[1]) * 0.1
+        
+        # Phase 11: Dynamic Social Network Evolution (Cronyism)
+        # Every 30 ticks, citizens try to "climb" the social ladder
+        if tick % 30 == 0:
+            for state in self.nation.states:
+                leader = self.agents.get(state.leader_id)
+                if not leader: continue
+                
+                state_citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN and a.state_id == state.id]
+                if not state_citizens: continue
+                
+                # 1. Decay: 20% chance to lose touch with a random connection
+                for agent in state_citizens + [leader]:
+                    if agent.social_links and random.random() < 0.2:
+                        idx = random.randint(0, len(agent.social_links) - 1)
+                        target_id = agent.social_links.pop(idx)
+                        # Remove back-link
+                        if target_id in self.agents:
+                            target = self.agents[target_id]
+                            if agent.id in target.social_links:
+                                target.social_links.remove(agent.id)
+                
+                # 2. Formation: Ambitious citizens seek the Leader's circle
+                # Top 10% wealthiest citizens in the state have a chance to connect to the leader
+                state_citizens.sort(key=lambda x: x.wealth, reverse=True)
+                elite_count = max(1, int(len(state_citizens) * 0.1))
+                elites = state_citizens[:elite_count]
+                
+                for elite in elites:
+                    # If not already connected and rich enough
+                    if elite.id not in leader.social_links and random.random() < 0.4:
+                        leader.social_links.append(elite.id)
+                        elite.social_links.append(leader.id)
+                        logger.info(f"New connection: Wealthy Citizen {elite.id[:4]} joins Leader {leader.id[:4]}'s circle.")
+
         
         # Media Influence (Every tick)
         media_agents = [a for a in self.agents.values() if a.type == AgentType.MEDIA]
@@ -597,48 +646,59 @@ class SimulationEngine:
         dead_citizens = []
         new_citizens = {}
         
+        tax_rate = self.simulation_settings.get("inheritance_tax_rate", 0.5)
+        
         for agent_id, agent in self.agents.items():
             if agent.type == AgentType.CITIZEN:
                 agent.age += 1
                 if agent.age >= agent.lifespan:
                     dead_citizens.append(agent_id)
                     
-                    # Create Descendant
-                    child_id = str(uuid.uuid4())
-                    # Inherit 50% of wealth
-                    inherited_wealth = agent.wealth * 0.5
-                    # Mutate loyalty slightly
-                    new_loyalty = max(0, min(100, agent.faction_loyalty + random.uniform(-10, 10)))
+                    # 1 to 3 children (Variable Birth Rate)
+                    num_children = random.randint(1, 3)
                     
-                    child = CitizenAgent(
-                        id=child_id,
-                        honesty=max(0, min(1.0, agent.honesty + random.uniform(-0.1, 0.1))),
-                        greed=max(0, min(1.0, agent.greed + random.uniform(-0.1, 0.1))),
-                        competence=max(0, min(1.0, agent.competence + random.uniform(-0.1, 0.1))),
-                        state_id=agent.state_id,
-                        happiness=50,
-                        wealth=inherited_wealth,
-                        faction=agent.faction, # Inherit faction
-                        faction_loyalty=new_loyalty,
-                        age=0,
-                        lifespan=random.randint(80, 120),
-                        x=agent.x, # Born at same location
-                        y=agent.y,
-                        education=agent.education + random.uniform(-0.1, 0.1),
-                        ideology=[i + random.uniform(-0.05, 0.05) for i in agent.ideology]
-                    )
-                    new_citizens[child_id] = child
-                    # Initialize policy for child
-                    self.agent_policies[child_id] = self._create_policy(AgentType.CITIZEN)
+                    for _ in range(num_children):
+                        child_id = str(uuid.uuid4())
+                        # Distribute wealth after tax among children
+                        inherited_wealth = (agent.wealth * (1.0 - tax_rate)) / num_children
+                        # Mutate loyalty slightly
+                        new_loyalty = max(0, min(100, agent.faction_loyalty + random.uniform(-10, 10)))
+                        
+                        child = CitizenAgent(
+                            id=child_id,
+                            honesty=max(0, min(1.0, agent.honesty + random.uniform(-0.1, 0.1))),
+                            greed=max(0, min(1.0, agent.greed + random.uniform(-0.1, 0.1))),
+                            competence=max(0, min(1.0, agent.competence + random.uniform(-0.1, 0.1))),
+                            state_id=agent.state_id,
+                            happiness=50,
+                            wealth=inherited_wealth,
+                            faction=agent.faction, # Inherit faction
+                            faction_loyalty=new_loyalty,
+                            age=0,
+                            lifespan=random.randint(80, 120),
+                            x=agent.x + random.uniform(-20, 20), # Spread children slightly
+                            y=agent.y + random.uniform(-20, 20),
+                            education=agent.education + random.uniform(-0.1, 0.1),
+                            ideology=[i + random.uniform(-0.05, 0.05) for i in agent.ideology]
+                        )
+                        new_citizens[child_id] = child
+                        # Initialize policy for child
+                        self.agent_policies[child_id] = self._create_policy(AgentType.CITIZEN)
+                        
+                        # Inheritance of some social links (e.g., 20% of family network)
+                        if agent.social_links:
+                            family_network = random.sample(agent.social_links, min(2, len(agent.social_links)))
+                            child.social_links.extend(family_network)
                     
                     # Notify News (Every 10 deaths to avoid spam)
                     if len(dead_citizens) % 10 == 0:
                         self.last_election_results.insert(0, {
-                            "outcome": "Generational Turnover",
+                            "outcome": "Demographic Shift",
                             "winner_name": "New Generation",
                             "state_id": agent.state_id[:10],
-                            "reason": f"A new generation has inherited the future."
+                            "reason": f"Population turnover in state {agent.state_id[:8]}."
                         })
+
         
         # Remove dead, add new
         for d_id in dead_citizens:
@@ -731,36 +791,33 @@ class SimulationEngine:
                     else:
                         agent.wealth = max(0, agent.wealth + impact)
 
-    def get_state(self):
-        # Calculate Global Metrics for consistency
-        all_citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN]
-        sl = self.agents.get(self.nation.supreme_leader_id)
-        metrics = {
-            "avg_happiness": 0,
-            "avg_wealth": 0,
-            "avg_trust": 0,
-            "sl_budget": sl.total_budget if sl else 0
-        }
-        
-        if all_citizens:
-             metrics["avg_happiness"] = sum(c.happiness for c in all_citizens) / len(all_citizens)
-             metrics["avg_wealth"] = sum(c.wealth for c in all_citizens) / len(all_citizens)
-             metrics["avg_trust"] = sum(c.trust_score for c in all_citizens) / len(all_citizens)
-             metrics["inflation"] = self.inflation_rate
-             metrics["unemployment"] = self.unemployment_rate
-             
-             # Calculate Inequality
-             avg_wealth = metrics["avg_wealth"]
-             wealth_sq_diff = sum((c.wealth - avg_wealth)**2 for c in all_citizens)
-             metrics["inequality"] = (wealth_sq_diff / len(all_citizens))**0.5 / (avg_wealth + 0.1)
+        # Per-State Summary Metrics
+        state_metrics = {}
+        for i, state in enumerate(self.nation.states):
+            s_citizens = [a for a in self.agents.values() if a.type == AgentType.CITIZEN and a.state_id == state.id]
+            s_leader = self.agents.get(state.leader_id)
+            
+            # Map color to state
+            color = self.state_colors[i % len(self.state_colors)]
+            
+            state_metrics[state.id] = {
+                "name": state.name,
+                "population": len(s_citizens),
+                "avg_wealth_citizens": sum(c.wealth for c in s_citizens) / len(s_citizens) if s_citizens else 0,
+                "leader_wealth": s_leader.wealth if s_leader else 0,
+                "color": color
+            }
 
         return {
             "tick": self.scheduler.current_tick,
             "nation": self.nation,
             "agents": list(self.agents.values()),
             "last_election_results": self.last_election_results,
-            "metrics": metrics
+            "metrics": metrics,
+            "state_metrics": state_metrics,
+            "settings": self.simulation_settings
         }
+
 
 # Global Instance
 simulation_instance = SimulationEngine()

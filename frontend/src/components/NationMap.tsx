@@ -8,52 +8,94 @@ interface Agent {
     x: number;
     y: number;
     wealth?: number;
-    last_action?: number; // 0=Invest, 1=Steal, 2=Maintain, 3=Propaganda
+    last_action?: number;
     faction?: string;
+    state_id?: string;
+    social_links?: string[];
 }
 
 interface NationMapProps {
     agents: Agent[];
+    stateMetrics: Record<string, any>;
+    showSocialGraph: boolean;
+    highlightType: 'all' | 'politician' | 'regular';
     width?: number;
     height?: number;
 }
 
-const NationMap: React.FC<NationMapProps> = ({ agents, width = 800, height = 600 }) => {
+const NationMap: React.FC<NationMapProps> = ({ agents, stateMetrics, showSocialGraph, highlightType, width = 800, height = 600 }) => {
 
-    // Draw Agents in one batch for performance
+
     const drawAllAgents = useCallback((g: any) => {
         g.clear();
 
+        // 1. Draw Social Graph Lines first (so they are under agents)
+        if (showSocialGraph) {
+            const agentMap = new Map(agents.map(a => [a.id, a]));
+
+            agents.forEach(agent => {
+                const stateColor = agent.state_id ? (stateMetrics[agent.state_id]?.color || "#2196F3") : "#2196F3";
+                const hexColor = parseInt(stateColor.replace('#', ''), 16);
+
+                if (agent.social_links) {
+                    agent.social_links.forEach(targetId => {
+                        const target = agentMap.get(targetId);
+                        if (target) {
+                            g.lineStyle(1, hexColor, 0.4);
+                            g.moveTo(agent.x, agent.y);
+                            g.lineTo(target.x, target.y);
+                        }
+                    });
+                }
+            });
+            g.lineStyle(0);
+        }
+
+        // 2. Draw Agents
         agents.forEach(agent => {
             let color = 0x2196F3; // Default Blue (Citizen)
+            const stateColor = agent.state_id ? (stateMetrics[agent.state_id]?.color || "#2196F3") : "#2196F3";
+            const hexStateColor = parseInt(stateColor.replace('#', ''), 16);
+
+            const isPolitician = agent.type === 'leader' || agent.type === 'supreme_leader';
+            const isRegular = agent.type === 'citizen';
 
             if (agent.type === 'leader') {
-                color = 0x4CAF50; // Green
+                color = 0x4CAF50;
             } else if (agent.type === 'supreme_leader') {
-                color = 0xFFFF00; // Yellow
+                color = 0xFFFF00;
             } else if (agent.type === 'media') {
-                color = 0x9C27B0; // Purple
+                color = 0x9C27B0;
             } else if (agent.type === 'external') {
-                color = 0x9E9E9E; // Grey
-            } else if (agent.type === 'citizen') {
-                if (agent.faction === 'Environmentalist') color = 0x8BC34A;
-                else if (agent.faction === 'Technocrat') color = 0x9C27B0;
-                else if (agent.faction === 'Industrialist') color = 0x0D47A1;
+                color = 0x9E9E9E;
+            } else if (isRegular) {
+                color = hexStateColor;
             }
 
             let radius = 5;
             let alpha = 1.0;
 
-            if (agent.type === 'external') {
-                radius = 15;
-                alpha = 0.6;
-            } else if (agent.wealth) {
-                radius = 5 + (agent.wealth / 10);
-                if (agent.wealth < 5) alpha = 0.5;
+            // Apply Highlighting Dimming
+            if (highlightType === 'politician' && !isPolitician) {
+                alpha = 0.1;
+            } else if (highlightType === 'regular' && !isRegular) {
+                alpha = 0.1;
             }
 
-            // Draw Base Agent with border for clarity
-            g.lineStyle(1, 0x333333, 0.6);
+            if (agent.type === 'supreme_leader') {
+                radius = 22; // Even bigger Supreme Leader
+                alpha = alpha; // Maintain relative alpha
+            } else if (agent.type === 'external') {
+                radius = 15;
+                alpha = alpha * 0.6;
+            } else if (agent.wealth !== undefined) {
+                radius = 5 + (agent.wealth / 10);
+                if (agent.wealth < 5) alpha = alpha * 0.5;
+            }
+
+
+            // Draw Base Agent
+            g.lineStyle(agent.type === 'leader' ? 3 : 1, agent.type === 'leader' ? 0xFFFFFF : 0x333333, 0.6);
             g.beginFill(color, alpha);
             g.drawCircle(agent.x, agent.y, radius);
             g.endFill();
@@ -66,15 +108,28 @@ const NationMap: React.FC<NationMapProps> = ({ agents, width = 800, height = 600
                 g.lineStyle(0);
             }
         });
-    }, [agents]);
+    }, [agents, stateMetrics, showSocialGraph, highlightType]);
+
 
     return (
-        <Stage width={width} height={height} options={{ backgroundColor: 0x1099bb, antialias: true }}>
+        <Stage width={width} height={height} options={{ backgroundColor: 0x111111, antialias: true }}>
             <Container>
                 <Graphics draw={drawAllAgents} />
             </Container>
         </Stage>
     );
+};
+
+export default NationMap;
+
+
+return (
+    <Stage width={width} height={height} options={{ backgroundColor: 0x1099bb, antialias: true }}>
+        <Container>
+            <Graphics draw={drawAllAgents} />
+        </Container>
+    </Stage>
+);
 };
 
 export default NationMap;

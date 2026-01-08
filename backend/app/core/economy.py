@@ -16,7 +16,7 @@ class EconomyService:
         for leader in state_leaders:
             leader.budget_allocated = per_state_budget
 
-    def process_state_economy(self, leader: StateLeaderAgent, citizens: List[CitizenAgent], inflation: float, unemployment: float, policy_settings: Dict[str, bool]) -> float:
+    def process_state_economy(self, leader: StateLeaderAgent, citizens: List[CitizenAgent], inflation: float, unemployment: float, policy_settings: Dict[str, bool], sim_settings: Dict[str, any]) -> float:
         """
         Executes the economic consequences of the leader's action.
         Returns the step reward for the leader, modified by policy_settings.
@@ -25,6 +25,7 @@ class EconomyService:
             return 0.0
 
         action = leader.last_action
+        corruption_effector = sim_settings.get("corruption_efficiency", 0.5)
         
         # 1. Execute Action Effects
         initial_budget = leader.budget_allocated
@@ -35,28 +36,30 @@ class EconomyService:
         fear_change = 0
         
         if action == 1: # STEAL / BLACK ECONOMY
-            personal_gain = initial_budget * 0.5
-            funds_for_people = initial_budget * 0.4 
-            trust_change -= 10
-            happiness_modifier -= 2
-            fear_change += 5 # Corruption breeds fear/instability
+            # personal_gain is what reaches the leader
+            # the rest is "lost to the system" or bureaucratic waste
+            personal_gain = initial_budget * corruption_effector
+            funds_for_people = initial_budget * (0.9 - corruption_effector) # Citizens get very little
+            trust_change -= 15
+            happiness_modifier -= 3
+            fear_change += 7
         elif action == 0: # INVEST
             funds_for_people = initial_budget
             if leader.wealth > 10:
                 funds_for_people += 10
                 leader.wealth -= 10
-            trust_change += 5
-            happiness_modifier += 1
-            fear_change -= 2
+            trust_change += 7
+            happiness_modifier += 2
+            fear_change -= 3
         elif action == 2: # MAINTAIN
-            personal_gain = initial_budget * 0.1
-            funds_for_people = initial_budget * 0.9
-            trust_change += 0
+            personal_gain = initial_budget * 0.05
+            funds_for_people = initial_budget * 0.95
+            trust_change += 1
         elif action == 3: # PROPAGANDA
-            funds_for_people = initial_budget * 0.7
-            trust_change += 15 
+            funds_for_people = initial_budget * 0.8
+            trust_change += 12 
             happiness_modifier -= 1
-            fear_change += 10 # Propaganda can be intimidating
+            fear_change += 8
             
         # Economic Risk Taking (Hope)
         for citizen in citizens:
@@ -89,27 +92,23 @@ class EconomyService:
             citizen.happiness = max(0, min(100, citizen.happiness + happiness_modifier))
 
         # 3. Calculate Reward (Modified by Toggles)
-        # By default, leaders care about personal wealth.
         step_reward = personal_gain 
 
-        # If toggles are on, add these to the reward function
         if policy_settings.get("consider_trust", True):
-            step_reward += (trust_change * 2)
+            step_reward += (trust_change * 3)
         
         if policy_settings.get("consider_happiness", True):
             avg_happiness = sum(c.happiness for c in citizens) / len(citizens)
-            step_reward += (avg_happiness / 10.0)
+            step_reward += (avg_happiness / 5.0)
 
         if policy_settings.get("consider_fear", True):
-            # Authoritarian leaders might find fear rewarding (compliance)
-            # while democratic ones find it punishing.
-            # For simplicity: Fear is a negative factor for 'Stable' reward.
             avg_fear = sum(c.fear for c in citizens) / len(citizens)
-            step_reward -= (avg_fear * 10)
+            step_reward -= (avg_fear * 15)
 
         if policy_settings.get("consider_wealth", True):
             avg_wealth = sum(c.wealth for c in citizens) / len(citizens)
-            step_reward += (avg_wealth / 50.0)
+            step_reward += (avg_wealth / 30.0)
         
         return step_reward
+
 

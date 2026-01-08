@@ -39,6 +39,8 @@ interface SimulationState {
   agents: Agent[];
   last_election_results: any[];
   metrics: any;
+  state_metrics: Record<string, any>;
+  settings: Record<string, any>;
 }
 
 function App() {
@@ -52,15 +54,18 @@ function App() {
     consider_happiness: true,
     consider_wealth: true
   })
-  const [settings, setSettings] = useState<Record<string, boolean>>({
+  const [settings, setSettings] = useState<Record<string, any>>({
     enable_hope_mechanic: true,
     enable_trust_decay: true,
     enable_happiness_influence: true,
     enable_memory_loss: true,
-    enable_ideology_shift: true
+    enable_ideology_shift: true,
+    inheritance_tax_rate: 0.5,
+    corruption_efficiency: 0.5,
+    show_social_graph: false
   })
+  const [highlightType, setHighlightType] = useState<'all' | 'politician' | 'regular'>('all')
   const [mediaInfo, setMediaInfo] = useState<any[]>([])
-
 
 
   const fetchState = async () => {
@@ -68,26 +73,23 @@ function App() {
       const response = await axios.get('http://localhost:8000/api/simulation/state')
       setSimState(response.data)
 
-      // Also fetch history
+      if (response.data.settings) {
+        setSettings(response.data.settings)
+      }
+
+      // Fetch history
       const historyRes = await axios.get('http://localhost:8000/api/simulation/history')
       setHistory(historyRes.data)
-
 
       // Fetch Policy
       const policyRes = await axios.get('http://localhost:8000/api/simulation/policy')
       setPolicy(policyRes.data)
-
-      // Fetch Settings
-      const settingsRes = await axios.get('http://localhost:8000/api/simulation/settings')
-      setSettings(settingsRes.data)
 
       // Fetch Media Info
       const mediaRes = await axios.get('http://localhost:8000/api/simulation/media')
       setMediaInfo(mediaRes.data)
 
       setError(null)
-
-
     } catch (err) {
       setError('Failed to connect to backend. Is it running?')
       console.error(err)
@@ -98,158 +100,191 @@ function App() {
 
   useEffect(() => {
     fetchState()
-    const interval = setInterval(fetchState, 1000) // Poll every second
+    const interval = setInterval(fetchState, 1000)
     return () => clearInterval(interval)
   }, [])
 
+  const updateSetting = async (key: string, value: any) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    await axios.post('http://localhost:8000/api/simulation/settings', newSettings);
+  };
+
   return (
-    <div className="container">
-      <h1>Sworm System</h1>
+    <div className="app-container">
+      {/* Sidebar Controls - 15% */}
+      <aside className="sidebar">
+        <h2>Sworm Sim 2.0</h2>
 
-      {error && <div className="error">{error}</div>}
+        <div className="control-group">
+          <h3>Simulation Control</h3>
+          <button className="sidebar-btn" onClick={async () => {
+            const res = await axios.post('http://localhost:8000/api/simulation/tick');
+            setSimState(res.data);
+          }}>Manual Tick</button>
 
-      {loading && !simState && <div>Loading Simulation...</div>}
+          <button className="sidebar-btn clear" onClick={async () => {
+            if (window.confirm("Clear all history?")) {
+              await axios.post('http://localhost:8000/api/simulation/history/clear');
+              setHistory([]);
+              fetchState();
+            }
+          }}>Clear History</button>
+        </div>
 
-      {simState && (
-        <div className="dashboard-container">
-          <div className="stats-container">
-            <h2>Tick: {simState.tick}</h2>
-            <h3>Nation: {simState.nation.name}</h3>
-            {simState.metrics && <SimulationDashboard metrics={simState.metrics} />}
-          </div>
+        <div className="control-group">
+          <h3>View Filters</h3>
+          <label className="sidebar-label">
+            <input
+              type="radio" name="highlight" value="all"
+              checked={highlightType === 'all'}
+              onChange={() => setHighlightType('all')}
+            /> All Citizens
+          </label>
+          <label className="sidebar-label">
+            <input
+              type="radio" name="highlight" value="politician"
+              checked={highlightType === 'politician'}
+              onChange={() => setHighlightType('politician')}
+            /> Politicians
+          </label>
+          <label className="sidebar-label">
+            <input
+              type="radio" name="highlight" value="regular"
+              checked={highlightType === 'regular'}
+              onChange={() => setHighlightType('regular')}
+            /> Regular People
+          </label>
+        </div>
 
-          <div className="controls">
-            <button onClick={async () => {
-              const res = await axios.post('http://localhost:8000/api/simulation/tick');
-              setSimState(res.data);
-            }}>
-              Manual Tick
-            </button>
-            <button
-              className="clear-btn"
-              onClick={async () => {
-                if (window.confirm("Are you sure you want to clear all simulation history?")) {
-                  await axios.post('http://localhost:8000/api/simulation/history/clear');
-                  setHistory([]);
-                  fetchState();
-                }
-              }}
-              style={{ backgroundColor: '#c62828', marginLeft: '10px' }}
-            >
-              Clear History
-            </button>
-          </div>
 
-          <div className="policy-controls" style={{ margin: '20px 0', padding: '15px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-            <h3>Political Considerations (Emotion Toggles)</h3>
-            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-              {Object.entries(policy).map(([key, value]) => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={value}
-                    onChange={async () => {
-                      const newPolicy = { ...policy, [key]: !value };
-                      setPolicy(newPolicy);
-                      await axios.post('http://localhost:8000/api/simulation/policy', newPolicy);
-                    }}
-                    style={{ marginRight: '8px' }}
-                  />
-                  {key.replace('consider_', '').charAt(0).toUpperCase() + key.replace('consider_', '').slice(1)}
-                </label>
-              ))}
+        <div className="control-group">
+          <h3>Advanced Metrics</h3>
+          <label className="sidebar-label">
+            <span>Inheritance Tax: <strong>{(settings.inheritance_tax_rate * 100).toFixed(0)}%</strong></span>
+            <input
+              type="range" min="0.01" max="0.60" step="0.01"
+              value={settings.inheritance_tax_rate}
+              onChange={(e) => updateSetting('inheritance_tax_rate', parseFloat(e.target.value))}
+            />
+          </label>
+
+          <label className="sidebar-label">
+            <span>Corruption Eff.: <strong>{(settings.corruption_efficiency * 100).toFixed(0)}%</strong></span>
+            <input
+              type="range" min="0" max="1.0" step="0.05"
+              value={settings.corruption_efficiency}
+              onChange={(e) => updateSetting('corruption_efficiency', parseFloat(e.target.value))}
+            />
+          </label>
+
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={settings.show_social_graph}
+              onChange={(e) => updateSetting('show_social_graph', e.target.checked)}
+            />
+            Show Social Graph
+          </label>
+        </div>
+
+        <div className="control-group">
+          <h3>Emotion Toggles</h3>
+          {Object.entries(policy).map(([key, value]) => (
+            <label key={key} className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={value}
+                onChange={async () => {
+                  const newPolicy = { ...policy, [key]: !value };
+                  setPolicy(newPolicy);
+                  await axios.post('http://localhost:8000/api/simulation/policy', newPolicy);
+                }}
+              />
+              {key.replace('consider_', '').charAt(0).toUpperCase() + key.replace('consider_', '').slice(1)}
+            </label>
+          ))}
+        </div>
+
+        <div className="control-group">
+          <h3>Mechanics</h3>
+          {Object.entries(settings).map(([key, value]) => {
+            if (typeof value !== 'boolean') return null;
+            if (key === 'show_social_graph') return null;
+            return (
+              <label key={key} className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={value}
+                  onChange={() => updateSetting(key, !value)}
+                />
+                {key.replace('enable_', '').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              </label>
+            );
+          })}
+        </div>
+      </aside>
+
+      {/* Main Content Area - 85% */}
+      <main className="main-content">
+        {error && <div className="error-banner">{error}</div>}
+
+        {simState ? (
+          <>
+            <div style={{ display: 'flex', gap: '20px' }}>
+              <div className="stats-container" style={{ flex: 1 }}>
+                <h2>Cycle: {simState.tick} | {simState.nation.name}</h2>
+                <SimulationDashboard metrics={simState.metrics} />
+              </div>
+
+              <div className="media-mini-pane" style={{ flex: 1, background: '#111', padding: '15px', borderRadius: '12px' }}>
+                <h3>Media Landscape</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {mediaInfo.map(m => (
+                    <div key={m.id} style={{ fontSize: '0.8rem', padding: '8px', background: '#222', borderRadius: '5px' }}>
+                      <strong>{m.id.slice(0, 4)}</strong>: {m.ownership} | <span style={{ color: m.bias > 0 ? '#4caf50' : '#f44336' }}>{m.bias.toFixed(1)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-            <p style={{ fontSize: '0.9em', color: '#aaa', marginTop: '10px' }}>
-              Turning these off makes leaders ignore these factors in their reward logic.
-            </p>
-          </div>
 
-          <div className="citizen-mechanics" style={{ margin: '20px 0', padding: '15px', background: 'rgba(100,200,255,0.05)', borderRadius: '8px' }}>
-            <h3>Citizen Mechanics (Simulation Settings)</h3>
-            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-              {Object.entries(settings).map(([key, value]) => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={value}
-                    onChange={async () => {
-                      const newSettings = { ...settings, [key]: !value };
-                      setSettings(newSettings);
-                      await axios.post('http://localhost:8000/api/simulation/settings', newSettings);
-                    }}
-                    style={{ marginRight: '8px' }}
-                  />
-                  {key.replace('enable_', '').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                </label>
-              ))}
+            <div className="simulation-viewport">
+              <NationMap
+                agents={simState.agents}
+                stateMetrics={simState.state_metrics}
+                showSocialGraph={settings.show_social_graph}
+                highlightType={highlightType}
+              />
             </div>
-            <p style={{ fontSize: '0.9em', color: '#aaa', marginTop: '10px' }}>
-              Control citizen behavior: Hope (risk-taking), Trust Decay, Memory Loss (10% forget), Ideology Shift.
-            </p>
-          </div>
 
-          <div className="media-ownership" style={{ margin: '20px 0', padding: '15px', background: 'rgba(150,50,200,0.05)', borderRadius: '8px' }}>
-            <h3>Media Landscape</h3>
-            <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-              {mediaInfo.map(media => (
-                <div key={media.id} style={{ padding: '10px', background: '#333', borderRadius: '5px', minWidth: '200px' }}>
-                  <div style={{ fontWeight: 'bold' }}>Media {media.id.slice(0, 6)}</div>
-                  <div style={{ fontSize: '0.9em', color: '#aaa' }}>Owner: {media.ownership}</div>
-                  <div style={{ fontSize: '0.9em' }}>Bias: <span style={{ color: media.bias > 0 ? '#4caf50' : '#f44336' }}>{media.bias.toFixed(2)}</span></div>
-                  <div style={{ fontSize: '0.9em' }}>Credibility: {(media.credibility * 100).toFixed(0)}%</div>
+            <div className="news-feed">
+              <ul>
+                {simState.last_election_results.map((res: any, idx: number) => (
+                  <li key={idx}>
+                    <strong>{res.state_id?.slice(0, 8)}</strong>: {res.reason || res.outcome}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="state-metrics-grid">
+              {Object.entries(simState.state_metrics).map(([id, data]: [string, any]) => (
+                <div key={id} className="state-metric-card" style={{ borderLeftColor: data.color }}>
+                  <h4>{data.name}</h4>
+                  <div className="metric_val">Population: <strong>{data.population}</strong></div>
+                  <div className="metric_val">Politician Wealth: <strong>{data.leader_wealth.toFixed(0)}</strong></div>
+                  <div className="metric_val">Avg Citizen Wealth: <strong>{data.avg_wealth_citizens.toFixed(1)}</strong></div>
                 </div>
               ))}
             </div>
-          </div>
 
-
-
-          <div className="simulation-view">
-            <NationMap agents={simState.agents} />
-            <div className="legend">
-              <span className="legend-item"><span className="dot" style={{ backgroundColor: '#0D47A1' }}></span> Industrialist</span>
-              <span className="legend-item"><span className="dot" style={{ backgroundColor: '#8BC34A' }}></span> Environmentalist</span>
-              <span className="legend-item"><span className="dot" style={{ backgroundColor: '#9C27B0' }}></span> Technocrat</span>
-              <span className="legend-item"><span className="dot" style={{ backgroundColor: '#2196F3' }}></span> Neutral</span>
-              <span className="legend-item"><span className="dot" style={{ backgroundColor: '#4CAF50' }}></span> Leader</span>
-              <span className="legend-item"><span className="dot" style={{ backgroundColor: '#FFFF00' }}></span> Supreme Leader</span>
-            </div>
-          </div>
-
-          <HistoryCharts history={history} states={simState.nation.states} />
-
-
-          <div className="news-feed">
-            <h3>News Feed</h3>
-            {simState.last_election_results && simState.last_election_results.length > 0 ? (
-              <ul>
-                {simState.last_election_results.map((res: any, idx: number) => {
-                  const isSocial = res.outcome === "Social Feedback";
-                  return (
-                    <li key={idx} className={res.winner_name === "New Leader" ? "news-alert" : isSocial ? "social-news" : ""}>
-                      <span className="news-tag">{res.state_id?.slice(0, 10)}:</span>
-                      {isSocial ? (
-                        <span className="news-msg">"{res.reason}" — <em>{res.winner_name}</em></span>
-                      ) : (
-                        <span className="news-msg">{res.outcome} ({res.incumbent_votes} vs {res.challenger_votes})</span>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : <p>No recent news.</p>}
-          </div>
-
-          <div className="state-list">
-            {simState.nation.states.map(state => (
-              <div key={state.id} className="state-card">
-                <h4>{state.name}</h4>
-                <p>Population: {state.population}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+            <HistoryCharts history={history} states={simState.nation.states} />
+          </>
+        ) : (
+          <div className="loading-state">Initialising Simulation Engines...</div>
+        )}
+      </main>
     </div>
   )
 }
