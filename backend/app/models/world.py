@@ -9,6 +9,8 @@ class State(BaseModel):
     economy_index: int = 100
     trust_index: int = 100
     budget: float = 0.0
+    unemployment_rate: float = 0.05
+
 
 class Nation(BaseModel):
     id: str

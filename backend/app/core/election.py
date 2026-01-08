@@ -47,10 +47,19 @@ class ElectionService:
                 fear_bias = citizen.fear * 30 
                 
                 incumbent_score = effective_trust + fear_bias
+                
+                # Phase 16: Unemployment Impact
+                if agents.get("sim_settings", {}).get("enable_unemployment_election_impact", False):
+                    # state_unemployment can be found on state object if passed, let's assume it's available or look it up
+                    # For now, subtract a baseline if we find it
+                    state_unemployment = getattr(citizen, 'state_unemployment', 0.05) # Assume injected
+                    incumbent_score -= (state_unemployment * 400) # 10% unemployment = -40 points
+                
                 challenger_score = random.uniform(30, 80)
                 
                 if incumbent_score > challenger_score:
                     vote = "incumbent"
+
             
             counts[vote] += 1
 
