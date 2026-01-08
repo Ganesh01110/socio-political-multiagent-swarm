@@ -35,10 +35,11 @@ The following Python packages are required (defined in `backend/requirements.txt
 - `scikit-fuzzy==0.4.2`: Fuzzy Inference System for moral and emotional logic
 - `torch==2.1.2`: Deep Learning framework for DQN (CPU-only version)
 
-**Testing (Optional):**
-- `pytest==7.4.4`: Testing framework
+**Testing (Required for Development):**
+- `pytest==7.4.4`: Main testing framework
 - `pytest-asyncio==0.23.3`: Async test support
-- `httpx==0.26.0`: HTTP client for API testing
+- `httpx==0.26.0`: HTTP client for API functional testing
+
 
 
 ### Installation Steps
@@ -91,10 +92,11 @@ The following Node packages are required:
    ```bash
    cd frontend
    ```
-2. Install dependencies:
+2. Install dependencies (Clean Install recommended):
    ```bash
-   npm install
+   npm ci
    ```
+
 
 ### Running the Frontend
 ```bash

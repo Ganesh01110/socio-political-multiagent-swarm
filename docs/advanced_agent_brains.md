@@ -20,7 +20,12 @@ Individual agents are assigned a **Policy** based on their role:
 
 ### 2. Socio-Economic Feedback Loops
 - **The Triangle of Instability**: Inflation, Unemployment, and Inequality now interact in a closed loop, affecting agent happiness and trust.
-- **Narrative Warfare**: Media agents operate with `disinformation_rate` and `algorithmic_amplification` to manipulate the simulation's "truth."
+- **Inheritance & Taxation**: Agents have finite lifespans. Upon death, they pass on wealth minus a configurable **Inheritance Tax (1-60%)**.
+- **Corruption Efficiency**: Variable settings determine the ROI of corrupt leadership actions, balancing greed with state stability.
+- **Variable Population**: Natural growth cycles with **1 to 3 children** per dying agent prevent static demographic stagnation.
+- **Narrative Warfare & Mastery**: Media agents manipulate public truth. Users can override ownership-based bias with global stances: **Neutral**, **State Ally**, or **Anti-State**, triggering specific disinformation headlines in the feed.
+- **Regime Stability (Coups)**: Implements non-electoral leader removal. Triggers when `avg_trust < 20` and `protest_intent > 0.6`. Deposed leaders face a major RL learning penalty (-500).
+
 
 ### 4. Fuzzy Logic Morality
 The system now includes a **Fuzzy Inference System (FIS)** for moral reasoning:
@@ -59,7 +64,10 @@ The latest upgrade introduces a **Social Graph** layer:
 - **Political Consequences**: 
     - **Coup d'état**: If aggregate national trust falls below a critical threshold while protest intent is high, a coup can occur, replacing the leader outside of the election cycle.
     - **Fear & Pressure**: Voting logic now accounts for peer pressure from social circles and fear induced by propaganda.
-    - **Cronyism**: Agents in a leader's social circle who have been economically favored vote for the incumbent with 95% probability (unless ideologically opposed).
+    - **Unemployment Factor**: If active, high per-state unemployment adds a heavy penalty to the incumbent's re-election probability (calculates as `- (unemployment_rate * 400)` points).
+    - **Dynamic Cronyism**: Social networks are no longer static. Wealthy citizens (Top 10%) have a 40% chance of forming links with leaders, while old links can decay over time. 
+    - **Cronyism in Voting**: Agents in a leader's social circle who have been economically favored vote for the incumbent with 95% probability.
+
 
 ## 6. Simulation Control Toggles
 The latest version introduces **runtime control** over citizen mechanics:

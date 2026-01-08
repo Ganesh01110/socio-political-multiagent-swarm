@@ -29,10 +29,13 @@ By combining **Hierarchical Strategy Patterns (DQN, ANN, Rule-Based)** for agent
 - **Database:** MariaDB (XAMPP compatible) / SQLite with per-state history tracking
 - **Frontend:** React, TypeScript, PixiJS (High-performance Swarm Rendering)
 - **Dynamics:** 
-  - Social Circle Graphing with Threshold Influence (Tipping Points)
-  - Political Coup Mechanics & Cronyism in Elections
-  - Dynamic Media Ownership (Industrialist, Politician, Citizen, External)
-  - Simulation Control Toggles (Hope, Trust Decay, Memory Loss, Ideology Shift)
+  - **Dynamic Social Cronyism:** Real-time social graph updates (link decay and formation).
+  - **Demographic Turnover:** Finite lifespans and variable birth rates (1-3 children).
+  - **Advanced Economics:** Adjustable **Inheritance Tax (1-60%)** and **Corruption Efficiency**.
+  - **Social Circle Graphing:** Real-time network lines color-coded by state.
+  - **Viewport Toggles:** Highlight "Politicians" vs "Regular People" to track wealth division.
+  - **Cronyism in Elections:** Deep integration of social links into leader rewards.
+
 - **DevOps:** Docker, Docker Compose, GitHub Actions (CI/CD)
 
 
@@ -94,12 +97,14 @@ Detailed guides are available in the `docs/` folder:
 - [x] **Phase 7-8:** AI Upgrades (DQN) and Social Complexity (Factions/Generations).
 - [x] **Phase 9-11:** Hierarchy Expansion (Media/External) and DevOps.
 - [x] **Phase 12:** Advanced Agent Brains with Hybrid Strategies, Fuzzy Logic, and Social Graphing.
-- [x] **Phase 13:** Simulation Control Toggles & Dynamic Media Ownership (Complete).
-  - Unified ANN intelligence for realistic human-level equality
-  - Citizen mechanics toggles (Hope, Trust Decay, Memory Loss, Ideology Shift)
-  - Media ownership based on social connections with dynamic bias
-  - Cronyism in elections and policy-aware leader rewards
-- [ ] **Phase 14:** Geo-Political Expansion and International Trade (Planned).
+- [x] **Phase 13:** Simulation Control Toggles & Dynamic Media Ownership.
+- [x] **Phase 15: Simulation 2.0 (The Great Reset):**
+  - **Inheritance Tax & Corruption:** Controllable economic resets.
+  - **Dynamic Cronyism:** Evolving social networks with decay/formation.
+  - **Dashboard Overhaul:** 15% sidebar layout with real-time state cards and network visualization.
+  - **Variable Population:** Natural demographic growth (1-3 children per agent).
+- [ ] **Phase 16:** Geo-Political Expansion and International Trade (Planned).
+
 
 
 

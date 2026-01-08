@@ -46,8 +46,8 @@ interface SimulationState {
 function App() {
   const [simState, setSimState] = useState<SimulationState | null>(null)
   const [history, setHistory] = useState<HistoryData[]>([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
   const [policy, setPolicy] = useState<Record<string, boolean>>({
     consider_trust: true,
     consider_fear: true,
@@ -93,10 +93,9 @@ function App() {
     } catch (err) {
       setError('Failed to connect to backend. Is it running?')
       console.error(err)
-    } finally {
-      setLoading(false)
     }
   }
+
 
   useEffect(() => {
     fetchState()
@@ -160,7 +159,7 @@ function App() {
 
         <div className="control-group">
           <h3>Advanced Metrics</h3>
-          <label className="sidebar-label">
+          <label className="sidebar-label slider">
             <span>Inheritance Tax: <strong>{(settings.inheritance_tax_rate * 100).toFixed(0)}%</strong></span>
             <input
               type="range" min="0.01" max="0.60" step="0.01"
@@ -169,7 +168,7 @@ function App() {
             />
           </label>
 
-          <label className="sidebar-label">
+          <label className="sidebar-label slider">
             <span>Corruption Eff.: <strong>{(settings.corruption_efficiency * 100).toFixed(0)}%</strong></span>
             <input
               type="range" min="0" max="1.0" step="0.05"
@@ -177,6 +176,7 @@ function App() {
               onChange={(e) => updateSetting('corruption_efficiency', parseFloat(e.target.value))}
             />
           </label>
+
 
           <label className="toggle-switch">
             <input
@@ -189,9 +189,38 @@ function App() {
         </div>
 
         <div className="control-group">
+          <h3>Media Stance</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
+            {['auto', 'neutral', 'pro_state', 'anti_state'].map(s => (
+              <label key={s} className="sidebar-label" style={{ fontSize: '0.75rem', textTransform: 'capitalize' }}>
+                <input
+                  type="radio" name="media_stance" value={s}
+                  checked={settings.media_bias_override === s}
+                  onChange={() => updateSetting('media_bias_override', s)}
+                /> {s.replace('_', ' ')}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="control-group">
+          <h3>Socio-Economics</h3>
+          <label className="toggle-switch">
+            <input
+              type="checkbox"
+              checked={settings.enable_unemployment_election_impact}
+              onChange={() => updateSetting('enable_unemployment_election_impact', !settings.enable_unemployment_election_impact)}
+            />
+            Unemployment Multiplier
+          </label>
+        </div>
+
+
+        <div className="control-group">
           <h3>Emotion Toggles</h3>
-          {Object.entries(policy).map(([key, value]) => (
+          {Object.entries(policy || {}).map(([key, value]) => (
             <label key={key} className="toggle-switch">
+
               <input
                 type="checkbox"
                 checked={value}
@@ -208,8 +237,9 @@ function App() {
 
         <div className="control-group">
           <h3>Mechanics</h3>
-          {Object.entries(settings).map(([key, value]) => {
+          {Object.entries(settings || {}).map(([key, value]) => {
             if (typeof value !== 'boolean') return null;
+
             if (key === 'show_social_graph') return null;
             return (
               <label key={key} className="toggle-switch">
@@ -237,17 +267,33 @@ function App() {
                 <SimulationDashboard metrics={simState.metrics} />
               </div>
 
-              <div className="media-mini-pane" style={{ flex: 1, background: '#111', padding: '15px', borderRadius: '12px' }}>
-                <h3>Media Landscape</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  {mediaInfo.map(m => (
-                    <div key={m.id} style={{ fontSize: '0.8rem', padding: '8px', background: '#222', borderRadius: '5px' }}>
-                      <strong>{m.id.slice(0, 4)}</strong>: {m.ownership} | <span style={{ color: m.bias > 0 ? '#4caf50' : '#f44336' }}>{m.bias.toFixed(1)}</span>
-                    </div>
-                  ))}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="media-mini-pane" style={{ background: '#111', padding: '15px', borderRadius: '12px' }}>
+                  <h3>Media Landscape</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {mediaInfo.map(m => (
+                      <div key={m.id} style={{ fontSize: '0.8rem', padding: '8px', background: '#222', borderRadius: '5px' }}>
+                        <strong>{m.id.slice(0, 4)}</strong>: {m.ownership} | <span style={{ color: m.bias > 0 ? '#4caf50' : '#f44336' }}>{m.bias.toFixed(1)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="identity-guide" style={{ background: '#111', padding: '15px', borderRadius: '12px', fontSize: '0.85rem' }}>
+                  <h3>Agent Identity Guide</h3>
+                  <div style={{ color: '#aaa' }}>
+                    <p><strong>Yellow (Large):</strong> Supreme Leader</p>
+                    <p><strong style={{ color: '#FF5722' }}>Orange-Red:</strong> State Leaders (Politicians)</p>
+                    <p><strong>State Color:</strong> Citizens of that state</p>
+                    <p><strong>Purple:</strong> Media Institutions</p>
+                    <p><strong>Isolated Individuals:</strong> Agents with low wealth and no social links remain grey/small.</p>
+                  </div>
                 </div>
               </div>
+
             </div>
+
+
 
             <div className="simulation-viewport">
               <NationMap
@@ -259,25 +305,30 @@ function App() {
             </div>
 
             <div className="news-feed">
+              <h3>National News Feed</h3>
               <ul>
                 {simState.last_election_results.map((res: any, idx: number) => (
                   <li key={idx}>
-                    <strong>{res.state_id?.slice(0, 8)}</strong>: {res.reason || res.outcome}
+                    <strong>[{res.state_id?.slice(0, 4)}]</strong> {res.reason || res.outcome}
                   </li>
                 ))}
               </ul>
             </div>
 
+
             <div className="state-metrics-grid">
-              {Object.entries(simState.state_metrics).map(([id, data]: [string, any]) => (
+              {Object.entries(simState.state_metrics || {}).map(([id, data]: [string, any]) => (
                 <div key={id} className="state-metric-card" style={{ borderLeftColor: data.color }}>
                   <h4>{data.name}</h4>
                   <div className="metric_val">Population: <strong>{data.population}</strong></div>
+                  <div className="metric_val">Unemployment: <strong style={{ color: data.unemployment_rate > 0.1 ? '#f44336' : '#4caf50' }}>{(data.unemployment_rate * 100).toFixed(1)}%</strong></div>
                   <div className="metric_val">Politician Wealth: <strong>{data.leader_wealth.toFixed(0)}</strong></div>
                   <div className="metric_val">Avg Citizen Wealth: <strong>{data.avg_wealth_citizens.toFixed(1)}</strong></div>
+
                 </div>
               ))}
             </div>
+
 
             <HistoryCharts history={history} states={simState.nation.states} />
           </>

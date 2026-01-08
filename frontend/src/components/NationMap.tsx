@@ -23,14 +23,15 @@ interface NationMapProps {
     height?: number;
 }
 
-const NationMap: React.FC<NationMapProps> = ({ agents, stateMetrics, showSocialGraph, highlightType, width = 800, height = 600 }) => {
+const NationMap: React.FC<NationMapProps> = ({ agents, stateMetrics, showSocialGraph, highlightType, width = 1200, height = 700 }) => {
+
 
 
     const drawAllAgents = useCallback((g: any) => {
         g.clear();
 
         // 1. Draw Social Graph Lines first (so they are under agents)
-        if (showSocialGraph) {
+        if (showSocialGraph && stateMetrics) {
             const agentMap = new Map(agents.map(a => [a.id, a]));
 
             agents.forEach(agent => {
@@ -54,15 +55,19 @@ const NationMap: React.FC<NationMapProps> = ({ agents, stateMetrics, showSocialG
         // 2. Draw Agents
         agents.forEach(agent => {
             let color = 0x2196F3; // Default Blue (Citizen)
-            const stateColor = agent.state_id ? (stateMetrics[agent.state_id]?.color || "#2196F3") : "#2196F3";
+            const stateColor = (agent.state_id && stateMetrics && stateMetrics[agent.state_id])
+                ? (stateMetrics[agent.state_id].color || "#2196F3")
+                : "#2196F3";
             const hexStateColor = parseInt(stateColor.replace('#', ''), 16);
+
 
             const isPolitician = agent.type === 'leader' || agent.type === 'supreme_leader';
             const isRegular = agent.type === 'citizen';
 
             if (agent.type === 'leader') {
-                color = 0x4CAF50;
+                color = 0xFF5722; // Distinct Orange-Red for Politicians
             } else if (agent.type === 'supreme_leader') {
+
                 color = 0xFFFF00;
             } else if (agent.type === 'media') {
                 color = 0x9C27B0;
@@ -84,8 +89,8 @@ const NationMap: React.FC<NationMapProps> = ({ agents, stateMetrics, showSocialG
 
             if (agent.type === 'supreme_leader') {
                 radius = 22; // Even bigger Supreme Leader
-                alpha = alpha; // Maintain relative alpha
             } else if (agent.type === 'external') {
+
                 radius = 15;
                 alpha = alpha * 0.6;
             } else if (agent.wealth !== undefined) {
@@ -118,18 +123,6 @@ const NationMap: React.FC<NationMapProps> = ({ agents, stateMetrics, showSocialG
             </Container>
         </Stage>
     );
-};
-
-export default NationMap;
-
-
-return (
-    <Stage width={width} height={height} options={{ backgroundColor: 0x1099bb, antialias: true }}>
-        <Container>
-            <Graphics draw={drawAllAgents} />
-        </Container>
-    </Stage>
-);
 };
 
 export default NationMap;
